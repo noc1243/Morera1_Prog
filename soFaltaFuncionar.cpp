@@ -1,3 +1,4 @@
+//comentario aleatorio
 /*
 Programa de demonstracao de analise nodal modificada
 Por Antonio Carlos M. de Queiroz acmq@coe.ufrj.br
@@ -45,6 +46,9 @@ Os nos podem ser nomes
 #define MAX_NOS 50
 #define TOLG 1e-9
 #define DEBUG
+
+//começa o program na analise do ponto de operação
+bool ptOperacao = true;
 
 typedef struct elemento { /* Elemento do netlist */
   char nome[MAX_NOME];
