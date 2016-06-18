@@ -1,0 +1,21 @@
+TODO:
+
+1) Ponto de operacao
+	1.1) Adicionar a estampa do capacitor
+	1.2) Adicionar a estampa do indutor
+	1.3) Adicionar a estampa do transistor MOS
+		1.3.1) Adicionar as capacitancias internas
+		1.3.2) Outros componentes
+	1.4) Implementa Newton-Raphson
+
+2) Pequenos Sinais
+	2.1) Zerar elementos DC
+	2.2) Adicionar a estampa do capacitor
+	2.3) Adicionar a estampa do indutor
+	2.4) Adicionar a esmpa do transistor MOS
+		2.4.1) Adicionar as capacitâncias internas
+		2.4.1) Outros componentes
+
+3) Extras
+	3.1) Passo modificavel (de frequencia) pela linha de comando
+	3.2) Gerar os dois arquivos de saída (olhar no roteiro)
