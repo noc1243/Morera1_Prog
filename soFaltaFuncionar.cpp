@@ -60,6 +60,8 @@ typedef struct elemento { /* Elemento do netlist */
   int a,b,c,d,x,y,td,tg,ts,tb;
 } elemento;
 
+enum ptoOperacao { corte, ohmica, saturacao};
+
 elemento netlist[MAX_ELEM]; /* Netlist */
 
 int
@@ -84,6 +86,9 @@ double
   Yn[MAX_NOS+1][MAX_NOS+2],
   vAtual[MAX_NOS+1],
   vProximo[MAX_NOS+1];
+
+ptoOperacao transistorOp [MAX_NOS +1];
+
 
 /* Resolucao de sistema de equacoes lineares.
    Metodo de Gauss-Jordan com condensacao pivotal */
@@ -343,6 +348,7 @@ int main(void)
     //inicializa os vetores utilizdos na analise de convergencia
     vAtual[i] = 0;
     vProximo[i]=0;
+    transistorOp [i] = saturacao;
     for (j=0; j<=nv+1; j++)
     {
       Yn[i][j]=0;
@@ -350,6 +356,7 @@ int main(void)
 
   }
   /* Monta estampas */
+  int j = 0;
   for (i=1; i<=ne; i++) {
     tipo=netlist[i].nome[0];
     if (tipo=='R') {
@@ -428,6 +435,51 @@ int main(void)
       Yn[netlist[i].b][netlist[i].x]-=1;
       Yn[netlist[i].x][netlist[i].c]+=1;
       Yn[netlist[i].x][netlist[i].d]-=1;
+    }
+    else if (tipo=='M')
+    {
+    	double gm = 0;
+    	double gds = 0;
+	    double io = 0;
+    	double vt = netlist[i].vt + netlist[i].gama * (sqrt(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]) - sqrt(netlist[i].phi))) ;
+    	if (transistorOp [j] == saturacao)
+    	{
+    		gm = netlist[i].k * (netlist[i].w/netlist[i].l)* (2*((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt)) * (1 + netlist[i].lambda* (vAtual[netlist[i].td] - vAtual[netlist[i].ts]));
+    		gds = netlist[i].k * (netlist[i].w/netlist[i].l)* pow (((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt),2) * netlist[i].lambda;
+    		io = netlist[i].k * (netlist[i].w/netlist[i].l) * pow(((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt),2) * (1 + netlist[i].lambda * (vAtual[netlist[i].td] -vAtual[netlist[i].ts])) - (gm * (vAtual[netlist[i].tg] -vAtual[netlist[i].ts])) - (gds * (vAtual[netlist[i].td] -vAtual[netlist[i].ts]));
+    	}
+    	else if (transistorOp [j] == ohmica)
+    	{
+    		gm = netlist[i].k * (netlist[i].w/netlist[i].l)*(2* (vAtual[netlist[i].td] -vAtual[netlist[i].ts]))*(1+ netlist[i].lambda* (vAtual[netlist[i].td]-vAtual[netlist[i].ts]));
+    		gds = netlist[i].k * (netlist[i].w/netlist[i].l) * (2*((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt) - 2 * (vAtual[netlist[i].td] -vAtual[netlist[i].ts]) + 4* netlist[i].lambda * ( (vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt) * (vAtual[netlist[i].td] -vAtual[netlist[i].ts]) - 3*netlist[i].lambda * pow ( (vAtual[netlist[i].td] -vAtual[netlist[i].ts]),2));
+    		io = netlist[i].k * (netlist[i].w/netlist[i].l) * (2* ((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt)*(vAtual[netlist[i].td] -vAtual[netlist[i].ts]) - pow ((vAtual[netlist[i].td] -vAtual[netlist[i].ts]),2)) - (gm * (vAtual[netlist[i].tg] -vAtual[netlist[i].ts])) - (gds * (vAtual[netlist[i].td] -vAtual[netlist[i].ts]));
+    	}
+
+
+		double gmb = (gm*netlist[i].gama)/(2*sqrt(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts])));
+		gds = (gds==0?0:1/gds);
+
+		io-= (gmb * (vAtual [netlist[i].tb] -vAtual[netlist[i].ts]));
+
+		Yn[netlist[i].td][netlist[i].tb]+=gmb;
+		Yn[netlist[i].ts][netlist[i].ts]+=gmb;
+		Yn[netlist[i].td][netlist[i].ts]-=gmb;
+		Yn[netlist[i].ts][netlist[i].tb]-=gmb;
+
+		Yn[netlist[i].td][netlist[i].tg]+=gm;
+		Yn[netlist[i].ts][netlist[i].ts]+=gm;
+		Yn[netlist[i].td][netlist[i].tg]-=gm;
+		Yn[netlist[i].ts][netlist[i].tb]-=gm;
+
+		Yn[netlist[i].td][netlist[i].td]+=g;
+		Yn[netlist[i].ts][netlist[i].ts]+=g;
+		Yn[netlist[i].td][netlist[i].ts]-=g;
+	    Yn[netlist[i].ts][netlist[i].td]-=g;
+
+	    Yn[netlist[i].td][nv+1]-=io;
+	    Yn[netlist[i].ts][nv+1]+=io;
+
+    	j++;
     }
 #ifdef DEBUG
     /* Opcional: Mostra o sistema apos a montagem da estampa */
