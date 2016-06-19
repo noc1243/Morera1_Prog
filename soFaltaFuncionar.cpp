@@ -1,4 +1,3 @@
-//comentario aleatorio
 /*
 Programa de demonstracao de analise nodal modificada
 Por Antonio Carlos M. de Queiroz acmq@coe.ufrj.br
@@ -46,8 +45,9 @@ Os nos podem ser nomes
 #define MAX_NOS 50
 #define TOLG 1e-9
 #define DEBUG
+#define fatorDC 10e9
 
-//começa o program na analise do ponto de operação
+//começa o programa na analise do ponto de operação
 bool ptOperacao = true;
 
 typedef struct elemento { /* Elemento do netlist */
@@ -196,20 +196,29 @@ int main(void)
     sscanf(txt,"%10s",netlist[ne].nome);
     p=txt+strlen(netlist[ne].nome); /* Inicio dos parametros */
     /* O que e lido depende do tipo */
-    if (tipo=='R' || tipo=='I' || tipo=='V') {
-      sscanf(p,"%10s%10s%lg",na,nb,&netlist[ne].valor);
-      printf("%s %s %s %g\n",netlist[ne].nome,na,nb,netlist[ne].valor);
-      netlist[ne].a=numero(na);
-      netlist[ne].b=numero(nb);
+    if (tipo=='R' || tipo=='I' || tipo=='V' || tipo == 'C' || tipo == 'L') {
+      if(ptOperacao)
+      {
+        sscanf(p,"%10s%10s%lg",na,nb,&netlist[ne].valor);
+        printf("%s %s %s %g\n",netlist[ne].nome,na,nb,netlist[ne].valor);
+        netlist[ne].a=numero(na);
+        netlist[ne].b=numero(nb);
+      }
     }
+
     else if (tipo=='G' || tipo=='E' || tipo=='F' || tipo=='H') {
-      sscanf(p,"%10s%10s%10s%10s%lg",na,nb,nc,nd,&netlist[ne].valor);
-      printf("%s %s %s %s %s %g\n",netlist[ne].nome,na,nb,nc,nd,netlist[ne].valor);
-      netlist[ne].a=numero(na);
-      netlist[ne].b=numero(nb);
-      netlist[ne].c=numero(nc);
-      netlist[ne].d=numero(nd);
+      if (ptOperacao)
+      {
+        sscanf(p,"%10s%10s%10s%10s%lg",na,nb,nc,nd,&netlist[ne].valor);
+        printf("%s %s %s %s %s %g\n",netlist[ne].nome,na,nb,nc,nd,netlist[ne].valor);
+        netlist[ne].a=numero(na);
+        netlist[ne].b=numero(nb);
+        netlist[ne].c=numero(nc);
+        netlist[ne].d=numero(nd);
+      }
     }
+
+    //capacitor - estou trabalhando
     else if (tipo=='O') {
       sscanf(p,"%10s%10s%10s%10s",na,nb,nc,nd);
       printf("%s %s %s %s %s\n",netlist[ne].nome,na,nb,nc,nd);
@@ -345,6 +354,21 @@ int main(void)
       Yn[netlist[i].x][netlist[i].c]-=1;
       Yn[netlist[i].x][netlist[i].d]+=1;
       Yn[netlist[i].y][netlist[i].x]+=g;
+    }
+    else if (tipo=='C' || tipo=='L') {
+
+      //se for capacitor, a condutancia em DC tende a 0
+      if (tipo=='C')
+        g = netlist[i].valor / fatorDC;
+
+      //se for indutor, a indutancia em Dc tende a infinito
+      if (tipo=='L')
+        g = netlist[i].valor *fatorDC;
+
+      Yn[netlist[i].a][netlist[i].a]+=g;
+      Yn[netlist[i].b][netlist[i].b]+=g;
+      Yn[netlist[i].a][netlist[i].b]-=g;
+      Yn[netlist[i].b][netlist[i].a]-=g;
     }
     else if (tipo=='O') {
       Yn[netlist[i].a][netlist[i].x]+=1;
