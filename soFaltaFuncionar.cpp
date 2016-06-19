@@ -46,6 +46,7 @@ Os nos podem ser nomes
 #define TOLG 1e-9
 #define DEBUG
 #define fatorDC 10e9
+#define maxIt 50
 
 //comeca o programa na analise do ponto de operacao
 bool ptOperacao = true;
@@ -77,7 +78,9 @@ FILE *arquivo;
 
 double
   g,
-  Yn[MAX_NOS+1][MAX_NOS+2];
+  Yn[MAX_NOS+1][MAX_NOS+2],
+  vAtual[MAX_NOS+1],
+  vProximo[MAX_NOS+1];
 
 /* Resolucao de sistema de equacoes lineares.
    Metodo de Gauss-Jordan com condensacao pivotal */
@@ -143,6 +146,25 @@ int numero(char *nome)
 
 void calculaCAPs (double *Cgb, double *Cgs, double *Cgd, int modoOperacao);
 
+bool controleConvergencia ( double vAtual[], double vProximo[], int iteracoes)
+{
+  int cont;
+  double maxVal = 0;
+  double tempVar;
+  const double
+  if (iteracoes < maxIt)
+  {
+    for (cont = 0; cont <= nv; cont++)
+    {
+      tempVar = abs( ( vProximo[cont] - vAtual[cont] ) / vProximo[cont]);
+      if (tempVar > maxVal)
+        maxVal = tempVar;
+    }
+  }
+  //ainda nao fechei
+  //if maxVal <
+}
+
 //lembrar de limitar a tensao no substrato para que nao seja maior que a no Gate
 
 
@@ -177,7 +199,7 @@ int main(void)
   printf("Programa demonstrativo de analise nodal modificada\n");
   printf("Por Antonio Carlos M. de Queiroz - acmq@coe.ufrj.br\n");
   printf("Versao %s\n",versao);
- denovo:
+  denovo:
   /* Leitura do netlist */
   ne=0; nv=0; strcpy(lista[0],"0");
   printf("Nome do arquivo com o netlist (ex: mna.net): ");
@@ -298,8 +320,14 @@ int main(void)
   getch();
   /* Zera sistema */
   for (i=0; i<=nv; i++) {
+    //inicializa os vetores utilizdos na analise de convergencia
+    vAtual[i] = 0;
+    vProximo[i]=0;
     for (j=0; j<=nv+1; j++)
+    {
       Yn[i][j]=0;
+    }
+
   }
   /* Monta estampas */
   for (i=1; i<=ne; i++) {
@@ -420,4 +448,3 @@ int main(void)
   getch();
   return 0;
 }
-
