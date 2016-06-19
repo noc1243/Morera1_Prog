@@ -47,7 +47,7 @@ Os nos podem ser nomes
 #define DEBUG
 #define fatorDC 10e9
 
-//começa o programa na analise do ponto de operação
+//comeï¿½a o programa na analise do ponto de operaï¿½ï¿½o
 bool ptOperacao = true;
 
 typedef struct elemento { /* Elemento do netlist */
@@ -227,6 +227,8 @@ int main(void)
       netlist[ne].c=numero(nc);
       netlist[ne].d=numero(nd);
     }
+    else if (tipo == 'K')
+    	break;
     else if (tipo=='*') { /* Comentario comeca com "*" */
       printf("Comentario: %s",txt);
       ne--;
