@@ -41,6 +41,7 @@ Os nos podem ser nomes
 #include <complex>
 #define MAX_LINHA 80
 #define MAX_NOME 11
+#define MAX_TIPO 5
 #define MAX_ELEM 50
 #define MAX_NOS 50
 #define TOLG 1e-9
@@ -53,8 +54,10 @@ bool ptOperacao = true;
 
 typedef struct elemento { /* Elemento do netlist */
   char nome[MAX_NOME];
-  double valor;
-  int a,b,c,d,x,y;
+  double valor, modulo, fase;
+  double l,w,k,vt,lambda,gama,phi,ld;
+  int pnmos;
+  int a,b,c,d,x,y,td,tg,ts,tb;
 } elemento;
 
 elemento netlist[MAX_ELEM]; /* Netlist */
@@ -70,7 +73,7 @@ char
    contra excesso de caracteres nestas variaveis */
   nomearquivo[MAX_LINHA+1],
   tipo,
-  na[MAX_NOME],nb[MAX_NOME],nc[MAX_NOME],nd[MAX_NOME],
+  na[MAX_NOME],nb[MAX_NOME],nc[MAX_NOME],nd[MAX_NOME],ntd [MAX_NOME],ntg [MAX_NOME],nts [MAX_NOME],ntb [MAX_NOME], tTipo[MAX_TIPO], nL[MAX_NOME], nW[MAX_NOME], nK[MAX_NOME], nVt[MAX_NOME], nLambda[MAX_NOME], nGama[MAX_NOME], nPhi[MAX_NOME], nLd[MAX_NOME],
   lista[MAX_NOS+1][MAX_NOME+2], /*Tem que caber jx antes do nome */
   txt[MAX_LINHA+1],
   *p;
@@ -144,26 +147,26 @@ int numero(char *nome)
   }
 }
 
-void calculaCAPs (double *Cgb, double *Cgs, double *Cgd, int modoOperacao);
+//void calculaCAPs (double *Cgb, double *Cgs, double *Cgd, int modoOperacao);
 
-bool controleConvergencia ( double vAtual[], double vProximo[], int iteracoes)
-{
-  int cont;
-  double maxVal = 0;
-  double tempVar;
-  const double
-  if (iteracoes < maxIt)
-  {
-    for (cont = 0; cont <= nv; cont++)
-    {
-      tempVar = abs( ( vProximo[cont] - vAtual[cont] ) / vProximo[cont]);
-      if (tempVar > maxVal)
-        maxVal = tempVar;
-    }
-  }
-  //ainda nao fechei
-  //if maxVal <
-}
+//bool controleConvergencia ( double vAtual[], double vProximo[], int iteracoes)
+//{
+//  int cont;
+//  double maxVal = 0;
+//  double tempVar;
+//  const double
+//  if (iteracoes < maxIt)
+//  {
+//    for (cont = 0; cont <= nv; cont++)
+//    {
+//      tempVar = abs( ( vProximo[cont] - vAtual[cont] ) / vProximo[cont]);
+//      if (tempVar > maxVal)
+//        maxVal = tempVar;
+//    }
+//  }
+//  //ainda nao fechei
+//  //if maxVal <
+//}
 
 //lembrar de limitar a tensao no substrato para que nao seja maior que a no Gate
 
@@ -254,6 +257,23 @@ int main(void)
     }
     else if (tipo == 'K')
     	break;
+    else if (tipo == 'M')
+        {
+        	sscanf (p, "%10s%10s%10s%10s%10s%10s%10s%10s%10s%10s%10s%10s%10s%10s", netlist[ne].nome, ntd, ntg, nts, ntb, tTipo, nL, nW, nK, nVt, nLambda, nGama, nPhi, nLd);
+        	netlist[ne].pnmos = ((!strcmp (tTipo, "PMOS"))?0:1);
+        	netlist[ne].td=numero (ntd);
+        	netlist[ne].tg=numero (ntg);
+        	netlist[ne].ts=numero (nts);
+        	netlist[ne].tb=numero (ntb);
+        	netlist[ne].l = strtod (nL, NULL);
+        	netlist[ne].w = strtod (nW, NULL);
+        	netlist[ne].k = strtod (nK, NULL);
+        	netlist[ne].vt = strtod (nVt, NULL);
+        	netlist[ne].lambda = strtod (nLambda, NULL);
+        	netlist[ne].gama = strtod (nGama, NULL);
+        	netlist[ne].phi = strtod (nPhi, NULL);
+        	netlist[ne].ld = strtod (nLd, NULL);
+        }
     else if (tipo=='*') { /* Comentario comeca com "*" */
       printf("Comentario: %s",txt);
       ne--;
