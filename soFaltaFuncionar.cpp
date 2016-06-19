@@ -181,6 +181,12 @@ bool controleConvergencia ( double vAtual[], double vProximo[], int iteracoes )
       if (tempVar > maxVal)
         maxVal = tempVar;
     }
+
+    //faz com o que as tensoes futuras sejam as atuais
+    for (cont = 0; cont <= nv; cont++)
+    {
+      vAtual[cont] = vProximo[cont];
+    }
   }
 
   if (maxVal <= erroAtual)
@@ -188,11 +194,12 @@ bool controleConvergencia ( double vAtual[], double vProximo[], int iteracoes )
     mantemModelo = true;
     contadorConv++;
   }
-  else
+  else if (maxVal >= erroAtual)
   {
     mantemModelo = false;
     contadorConv = 0;
   }
+
   if (contadorConv >= minConv)
     convergiu = true;
 
@@ -217,6 +224,8 @@ int main(void)
     printf("Arquivo %s inexistente\n",nomearquivo);
     goto denovo;
   }
+
+  bool nLinear = false;
   printf("Lendo netlist:\n");
   fgets(txt,MAX_LINHA,arquivo);
   printf("Titulo: %s",txt);
@@ -262,6 +271,12 @@ int main(void)
     }
     else if (tipo == 'K')
     	break;
+
+    else if (tipo == 'M')
+    {
+      //adicionar estampas do MOSFET
+      nLinear = true;
+    }
     else if (tipo=='*') { /* Comentario comeca com "*" */
       printf("Comentario: %s",txt);
       ne--;
@@ -324,12 +339,10 @@ int main(void)
   }
   getch();
 
+
+
   while (!convergiu)
   {
-    if (iteracoes >= maxIt)
-    {
-      //trocar modelo do transistor
-    }
     /* Monta o sistema nodal modificado */
     printf("O circuito tem %d nos, %d variaveis e %d elementos\n",nn,nv,ne);
     getch();
@@ -341,7 +354,10 @@ int main(void)
       for (j=0; j<=nv+1; j++)
       {
         Yn[i][j]=0;
-      }
+      }        if (iteracoes >= maxIt)
+        {
+        //trocar modelo do transistor
+        }
     }
     /* Monta estampas */
     for (i=1; i<=ne; i++) {
@@ -408,7 +424,7 @@ int main(void)
         if (tipo=='C')
           g = netlist[i].valor / fatorDC;
 
-        //se for indutor, a indutancia em Dc tende a infinito
+        //se for indutor, a condutancia em DC tende a infinito
         if (tipo=='L')
           g = netlist[i].valor *fatorDC;
 
@@ -424,13 +440,31 @@ int main(void)
         Yn[netlist[i].x][netlist[i].d]-=1;
       }
 
+      //utilizar esse if para modificar as solucoes
+      if (nLinear)
+      {
+        for (i=1; i<=nv; i++)
+        {
+          Yn[i][nv+1] = vAtual[i];
+          //usar uma randomizacao do C caso queira
+        }
+      }
       //parte onde voce coloca o transistor
       if (mantemModelo)
       {
+        iteracoes++;
       }
       else
       {
         //troca o modelo de transistor
+        //e reinicia a contagem
+        iteracoes = 0;
+      }
+      if (iteracoes >= maxIt)
+      {
+        //troca o modelo do transistor
+        //e reinicia a contagem
+        iteracoes = 0;
       }
   #ifdef DEBUG
       /* Opcional: Mostra o sistema apos a montagem da estampa */
@@ -469,8 +503,12 @@ int main(void)
       printf("%s %s: %g\n",txt,lista[i],Yn[i][nv+1]);
       vProximo[i] = Yn[i] [nv+1];
     }
-    iteracoes++;
-    controleConvergencia (vAtual, vProximo, iteracoes);
+
+    //se for nao linear, utiliza Newton-Raphson
+    if (nLinear)
+      controleConvergencia (vAtual, vProximo, iteracoes);
+    else
+      convergiu = true;
   }
   getch();
   return 0;
