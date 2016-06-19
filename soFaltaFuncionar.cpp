@@ -49,6 +49,8 @@ Os nos podem ser nomes
 #define maxIt 50 //maximo de iteracoes
 #define refVal 1 //valor de referencia utilizado nos calculos de convergencias
 #define minConv 5 //minimo de iteracoes para considerar como estavel a solucao
+#define nConv 5 // o numero de vezes que o algoritmo pode tentar calcular uma solucao
+                //mesmo que esta nao esteja convergindo
 
 //comeca o programa na analise do ponto de operacao
 bool ptOperacao = true;
@@ -96,6 +98,9 @@ int contadorConv = 0;
 
 //conta o numero de iteracoes do alogoritmo
 int iteracoes = 0;
+
+//Conta a quantidade de vezes que o algoritmo nao convergiu
+int vezNConvergiu = 0;
 
 /* Resolucao de sistema de equacoes lineares.
    Metodo de Gauss-Jordan com condensacao pivotal */
@@ -195,6 +200,10 @@ bool controleConvergencia ( double vAtual[], double vProximo[], int iteracoes )
     contadorConv++;
   }
   else if (maxVal >= erroAtual)
+  {
+    vezNConvergiu++;
+  }
+  else if ((maxVal >= erroAtual) && (vezNConvergiu >= nConv))
   {
     mantemModelo = false;
     contadorConv = 0;
@@ -340,7 +349,7 @@ int main(void)
   getch();
 
 
-
+  int vezes = 0;
   while (!convergiu)
   {
     /* Monta o sistema nodal modificado */
@@ -441,7 +450,9 @@ int main(void)
       }
 
       //utilizar esse if para modificar as solucoes
-      if (nLinear)
+      //atribui o valor calculado na ultima iteracao
+      //a matriz que esta sendo calculada no momento
+      if (nLinear && vezes)
       {
         for (i=1; i<=nv; i++)
         {
@@ -454,16 +465,18 @@ int main(void)
       {
         iteracoes++;
       }
-      else
+      else if (!mantemModelo)
       {
         //troca o modelo de transistor
         //e reinicia a contagem
+        //se nao for pra manter o modelo
         iteracoes = 0;
       }
-      if (iteracoes >= maxIt)
+      else if (iteracoes >= maxIt)
       {
         //troca o modelo do transistor
         //e reinicia a contagem
+        //se estourar o limite de iteracoes
         iteracoes = 0;
       }
   #ifdef DEBUG
@@ -504,6 +517,7 @@ int main(void)
       vProximo[i] = Yn[i] [nv+1];
     }
 
+    vezes++;
     //se for nao linear, utiliza Newton-Raphson
     if (nLinear)
       controleConvergencia (vAtual, vProximo, iteracoes);
