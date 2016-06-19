@@ -47,7 +47,7 @@ Os nos podem ser nomes
 #define DEBUG
 #define fatorDC 10e9
 
-//come�a o programa na analise do ponto de opera��o
+//comeca o programa na analise do ponto de operacao
 bool ptOperacao = true;
 
 typedef struct elemento { /* Elemento do netlist */
@@ -141,6 +141,11 @@ int numero(char *nome)
   }
 }
 
+void calculaCAPs (double *Cgb, double *Cgs, double *Cgd, int modoOperacao);
+
+//lembrar de limitar a tensao no substrato para que nao seja maior que a no Gate
+
+
 int main(void)
 {
   //clrscr();
@@ -217,8 +222,6 @@ int main(void)
         netlist[ne].d=numero(nd);
       }
     }
-
-    //capacitor - estou trabalhando
     else if (tipo=='O') {
       sscanf(p,"%10s%10s%10s%10s",na,nb,nc,nd);
       printf("%s %s %s %s %s\n",netlist[ne].nome,na,nb,nc,nd);
