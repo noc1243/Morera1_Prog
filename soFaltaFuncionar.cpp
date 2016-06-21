@@ -46,15 +46,14 @@ Os nos podem ser nomes
 #define MAX_NOS 50
 #define TOLG 1e-9
 #define DEBUG
-#define fatorDC 10e9 //fator multiplicativo para capacitores e indutores DC
-#define maxIt 50 //maximo de iteracoes
-#define refVal 1 //valor de referencia utilizado nos calculos de convergencias
-#define minConv 5 //minimo de iteracoes para considerar como estavel a solucao
-#define nConv 5 // o numero de vezes que o algoritmo pode tentar calcular uma solucao
+#define FATORDC 10e9 //fator multiplicativo para capacitores e indutores DC
+#define MAX_IT 50 //maximo de iteracoes
+#define REFVAL 1 //valor de referencia utilizado nos calculos de convergencias
+#define MINCONV 2 //minimo de iteracoes para considerar como estavel a solucao
+#define NCONV 5 // o numero de vezes que o algoritmo pode tentar calcular uma solucao
                 //mesmo que esta nao esteja convergindo
 
-//comeca o programa na analise do ponto de operacao
-bool ptOperacao = true;
+#define MAX_ERRO 1e-9
 
 typedef struct elemento { /* Elemento do netlist */
   char nome[MAX_NOME];
@@ -88,40 +87,36 @@ FILE *arquivo;
 double
   g,
   Yn[MAX_NOS+1][MAX_NOS+2],
-  erroAtual = 0,
+  //erroAtual = 0,
   vAtual[MAX_NOS+1],
-  vProximo[MAX_NOS+1];
+  vProximo[MAX_NOS+1],
+  gm = 0,
+  gds = 0,
+  io = 0;
 
 ptoOperacao transistorOp [MAX_NOS +1];
 
-//manter modelo do transistor
-bool mantemModelo = true;
-
-//indica que a solucao convergiu
-bool convergiu = false;
-
-//conta quantas vezes os calculos deram erros menores
-int contadorConv = 0;
-
-//conta o numero de iteracoes do alogoritmo
-int iteracoes = 0;
-
-//Conta a quantidade de vezes que o algoritmo nao convergiu
-int vezNConvergiu = 0;
+bool ptOperacao = true; //comeca o programa na analise do ponto de operacao
+bool mantemModelo = true; //manter modelo do transistor
+bool convergiu = false; //indica que a solucao convergiu
+int contadorConv = 0; //conta quantas vezes os calculos deram erros menores
+int iteracoes = 0; //conta o numero de iteracoes do alogoritmo
+int vezNConvergiu = 0; //Conta a quantidade de vezes que o algoritmo nao convergiu
 
 /* Resolucao de sistema de equacoes lineares.
    Metodo de Gauss-Jordan com condensacao pivotal */
 int resolversistema(void)
 {
-  int i,j,l, a;
+ // int i,j,l, a;
   double t, p;
 
-  for (i=1; i<=nv; i++) {
-    t=0.0;
-    a=i;
+  int l;
+  for (int i=1; i<=nv; i++) {
+    double t=0.0;
+    int a=i;
     for (l=i; l<=nv; l++) {
       if (fabs(Yn[l][i])>fabs(t)) {
-	a=l;
+     a=l;
 	t=Yn[l][i];
       }
     }
@@ -176,52 +171,75 @@ int numero(char *nome)
 
 bool controleConvergencia ( double vAtual[], double vProximo[], int iteracoes )
 {
-  int cont;
   double maxVal = 0;
   double tempVar;
-  if (iteracoes < maxIt)
+  if (iteracoes < MAX_IT && (!iteracoes))
   {
-    for (int cont = 0; cont <= nv; cont++)
-    {
-      //define o modo como o erro sera tratado
-      if (fabs(vProximo[cont]) > refVal)
-        tempVar = fabs( ( vProximo[cont] - vAtual[cont] ) / vProximo[cont]);
+     for (int cont = 0; cont <= nv; cont++)
+     {
+           //define o modo como o erro sera tratado
+           if (fabs(vProximo[cont]) > REFVAL)
+             tempVar = fabs( ( vProximo[cont] - vAtual[cont] ) / vProximo[cont]);
 
-      if (vProximo[cont] < refVal)
-        tempVar = fabs(vProximo[cont] - vAtual[cont]);
+           if (vProximo[cont] < REFVAL)
+             tempVar = fabs(vProximo[cont] - vAtual[cont]);
 
-      //pega sempre o mesmo valor
-      if (tempVar > maxVal)
-        maxVal = tempVar;
-    }
+           //pega sempre o mesmo valor
+           if (tempVar > maxVal)
+             maxVal = tempVar;
+          }
 
-    //faz com o que as tensoes futuras sejam as atuais
-    for (int cont = 0; cont <= nv; cont++)
-    {
-      vAtual[cont] = vProximo[cont];
-    }
-  }
+          //faz com o que as tensoes futuras sejam as atuais
+          for (int cont = 0; cont <= nv; cont++)
+          {
+             vAtual[cont] = vProximo[cont];
+          }
 
-  printf("\nErro atual: %.3f\n", erroAtual);
-  if (maxVal <= erroAtual)
-  {
-    mantemModelo = true;
-    contadorConv++;
-  }
-  else if (maxVal >= erroAtual)
-  {
-    vezNConvergiu++;
-  }
-  else if ((maxVal >= erroAtual) && (vezNConvergiu >= nConv))
-  {
-    mantemModelo = false;
-    contadorConv = 0;
-  }
+          //printf("Erro: %f", MAX_ERRO);
+          printf("\nErro atual: %.10f\n", maxVal);
+          if (maxVal <= MAX_ERRO)
+          {
+              mantemModelo = true;
+              contadorConv++;
+          }
+          else if (maxVal >= MAX_ERRO)
+          {
+              vezNConvergiu++;
+          }
+          else if ((maxVal >= MAX_ERRO) && (vezNConvergiu >= NCONV))
+          {
+               mantemModelo = false;
+               contadorConv = 0;
+               //troca o modelo de transistor
+               //e reinicia a contagem
+               //se nao for pra manter o modelo
+               iteracoes = 0;
+          }
 
-  if (contadorConv >= minConv)
-    convergiu = true;
+          if (contadorConv >= MINCONV)
+          {
+               convergiu = true;
+               printf("Convergiu \n");
+          }
+               //Mudanca 21/06
+              //erroAtual = maxVal;
 
-    erroAtual = maxVal;
+                //parte onde voce coloca o transistor
+          if (mantemModelo)
+          {
+             iteracoes++;
+          }
+
+           else if (iteracoes >= MAX_IT)
+           {
+             //troca o modelo do transistor
+             //e reinicia a contagem
+             //se estourar o limite de iteracoes
+             iteracoes = 0;
+             mantemModelo = false;
+             contadorConv = 0;
+           }
+     }
 }
 
 //lembrar de limitar a tensao no substrato para que nao seja maior que a no Gate
@@ -243,14 +261,14 @@ int main(void)
     goto denovo;
   }
 
-  for (int cont = 0; cont <= MAX_NOS; cont++ )
-       {
-          vAtual[i] = 0;
-          vProximo[i]=0;
-          transistorOp [i] = saturacao;
-       }
+//  for (int cont = 0; cont <= MAX_NOS; cont++ )
+//  {
+//     vAtual[i] = 0;
+//     vProximo[i]=0;
+//     transistorOp [i] = saturacao;
+//  }
 
-  bool nLinear = false;
+  bool linear = false;
   printf("Lendo netlist:\n");
   fgets(txt,MAX_LINHA,arquivo);
   printf("Titulo: %s",txt);
@@ -314,8 +332,8 @@ int main(void)
           netlist[ne].gama = strtod (nGama, NULL);
           netlist[ne].phi = strtod (nPhi, NULL);
           netlist[ne].ld = strtod (nLd, NULL);
-          vAtual[netlist[ne].td] = 0.6;
-          nLinear = true;
+          //vAtual[netlist[ne].td] = 0.6;
+          linear = false;
     }
     else if (tipo=='*') { /* Comentario comeca com "*" */
       printf("Comentario: %s",txt);
@@ -381,16 +399,12 @@ int main(void)
 
 
   int vezes = 0;
-//  int cont;
-//  if (nLinear)
-//  {
-//       for (cont = 0; cont <= nv+1; cont++ )
-//       {
-//          vAtual[i] = 0;
-//          vProximo[i]=0;
-//          transistorOp [i] = saturacao;
-//       }
-//  }
+  for (int cont = 0; cont <= nv+1; cont++ )
+  {
+     vAtual[cont] = 0;
+     vProximo[cont]=0;
+     transistorOp [cont] = saturacao;
+  }
 
   while (!convergiu)
   {
@@ -400,15 +414,10 @@ int main(void)
     /* Zera sistema */
     for (int i=0; i<=nv; i++) {
       //inicializa os vetores utilizdos na analise de convergencia
-      for (int j=0; j<=nv+3; j++)
+      for (int j=0; j<=nv+1; j++)
       {
-          // printf ("ENTROU\n\n");
         Yn[i][j]=0;
-     }
-//      if (iteracoes >= maxIt)
-//        {
-//        //trocar modelo do transistor
-//        }
+      }
     }
     /* Monta estampas */
     int numMos = 0;
@@ -439,7 +448,8 @@ int main(void)
         Yn[netlist[i].b][netlist[i].x]-=1;
         Yn[netlist[i].x][netlist[i].a]-=1;
         Yn[netlist[i].x][netlist[i].b]+=1;
-        if (iteracoes >= 1) Yn[netlist[i].x][nv+1]-=netlist[i].valor;
+        if ((linear) || (vezes))
+          Yn[netlist[i].x][nv+1]-=netlist[i].valor;
       }
       else if (tipo=='E') {
         g=netlist[i].valor;
@@ -475,11 +485,11 @@ int main(void)
 
         //se for capacitor, a condutancia em DC tende a 0
         if (tipo=='C')
-          g = netlist[i].valor / fatorDC;
+          g = netlist[i].valor / FATORDC;
 
         //se for indutor, a condutancia em DC tende a infinito
         if (tipo=='L')
-          g = netlist[i].valor *fatorDC;
+          g = netlist[i].valor *FATORDC;
 
         Yn[netlist[i].a][netlist[i].a]+=g;
         Yn[netlist[i].b][netlist[i].b]+=g;
@@ -488,17 +498,17 @@ int main(void)
       }
      else if (tipo=='M')
      {
-          g = ((double) 1.0) / fatorDC;
-          double gm = 0;
-          double gds = 0;
-          double io = 0;
-          double vt = netlist[i].vt + netlist[i].gama * (fabs(sqrt(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))) - fabs(sqrt(netlist[i].phi))) ;
+          g = ((double) 1.0) / FATORDC;
+          gm = 0;
+          gds = 0;
+          io = 0;
+          double vt = netlist[i].vt + netlist[i].gama * (fabs(sqrt(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))) - fabs(sqrt(netlist[i].phi)));
           if (transistorOp [numMos] == saturacao)
           {
                gm = netlist[i].k * (netlist[i].w/netlist[i].l)* (2*((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt)) * (1 + netlist[i].lambda* (vAtual[netlist[i].td] - vAtual[netlist[i].ts]));
                gds = netlist[i].k * (netlist[i].w/netlist[i].l)* pow (((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt),2) * netlist[i].lambda;
                io = netlist[i].k * (netlist[i].w/netlist[i].l) * pow(((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt),2) * (1 + netlist[i].lambda * (vAtual[netlist[i].td] -vAtual[netlist[i].ts])) - (gm * (vAtual[netlist[i].tg] -vAtual[netlist[i].ts])) - (gds * (vAtual[netlist[i].td] -vAtual[netlist[i].ts]));
-
+               printf ("%f %f %f\n", gm,gds,io);
           }
           else if (transistorOp [numMos] == ohmica)
           {
@@ -508,7 +518,7 @@ int main(void)
           }
 
           double gmb = (gm*netlist[i].gama)/(2*sqrt(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts])));
-          gds = (gds==0?0:1/gds);
+          //gds = (gds==0?0:1/gds);
 
           io-= (gmb * (vAtual [netlist[i].tb] -vAtual[netlist[i].ts]));
 
@@ -560,7 +570,7 @@ int main(void)
       //utilizar esse if para modificar as solucoes
       //atribui o valor calculado na ultima iteracao
       //a matriz que esta sendo calculada no momento
-//      if (nLinear && vezes)
+//      if (Linear && vezes)
 //      {
 //        for (int i=1; i<=nv; i++)
 //        {
@@ -568,25 +578,7 @@ int main(void)
 //          //usar uma randomizacao do C caso queira
 //        }
 //      }
-      //parte onde voce coloca o transistor
-      if (mantemModelo)
-      {
-        iteracoes++;
-      }
-      else if (!mantemModelo)
-      {
-        //troca o modelo de transistor
-        //e reinicia a contagem
-        //se nao for pra manter o modelo
-        iteracoes = 0;
-      }
-      else if (iteracoes >= maxIt)
-      {
-        //troca o modelo do transistor
-        //e reinicia a contagem
-        //se estourar o limite de iteracoes
-        iteracoes = 0;
-      }
+
   #ifdef DEBUG
       /* Opcional: Mostra o sistema apos a montagem da estampa */
       printf("Sistema apos a estampa de %s\n",netlist[i].nome);
@@ -628,10 +620,9 @@ int main(void)
 
     vezes++;
     //se for nao linear, utiliza Newton-Raphson
-    if (nLinear)
+    if (!linear)
     {
       controleConvergencia (vAtual, vProximo, iteracoes);
-      printf("Aqui");
     }
     else
       convergiu = true;
