@@ -261,14 +261,14 @@ int main(void)
     goto denovo;
   }
 
-//  for (int cont = 0; cont <= MAX_NOS; cont++ )
-//  {
-//     vAtual[i] = 0;
-//     vProximo[i]=0;
-//     transistorOp [i] = saturacao;
-//  }
+  for (int cont = 0; cont <= MAX_NOS; cont++ )
+  {
+     vAtual[i] = 0;
+     vProximo[i]=0;
+     transistorOp [i] = saturacao;
+  }
 
-  bool linear = false;
+  bool linear = true;
   printf("Lendo netlist:\n");
   fgets(txt,MAX_LINHA,arquivo);
   printf("Titulo: %s",txt);
@@ -332,7 +332,11 @@ int main(void)
           netlist[ne].gama = strtod (nGama, NULL);
           netlist[ne].phi = strtod (nPhi, NULL);
           netlist[ne].ld = strtod (nLd, NULL);
-          //vAtual[netlist[ne].td] = 0.6;
+
+          //se tirar o g de -5v, o sistema fica singular
+          //criar metodo de ransomizacao das tensoes
+          vAtual[netlist[ne].td] = 0.0;
+          vAtual[netlist[ne].tg] = 5.0;
           linear = false;
     }
     else if (tipo=='*') { /* Comentario comeca com "*" */
@@ -399,12 +403,12 @@ int main(void)
 
 
   int vezes = 0;
-  for (int cont = 0; cont <= nv+1; cont++ )
-  {
-     vAtual[cont] = 0;
-     vProximo[cont]=0;
-     transistorOp [cont] = saturacao;
-  }
+//  for (int cont = 0; cont <= nv+1; cont++ )
+//  {
+//     vAtual[cont] = 0;
+//     vProximo[cont]=0;
+//     transistorOp [cont] = saturacao;
+//  }
 
   while (!convergiu)
   {
@@ -448,7 +452,7 @@ int main(void)
         Yn[netlist[i].b][netlist[i].x]-=1;
         Yn[netlist[i].x][netlist[i].a]-=1;
         Yn[netlist[i].x][netlist[i].b]+=1;
-        if ((linear) || (vezes))
+        //if ((linear) || (vezes))
           Yn[netlist[i].x][nv+1]-=netlist[i].valor;
       }
       else if (tipo=='E') {
@@ -502,13 +506,30 @@ int main(void)
           gm = 0;
           gds = 0;
           io = 0;
+          double vgs = vAtual[netlist[i].tg]-vAtual[netlist[i].ts];
+          double vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
           double vt = netlist[i].vt + netlist[i].gama * (fabs(sqrt(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))) - fabs(sqrt(netlist[i].phi)));
+          printf ("vt: %f  vgs: %f vds: %f\n", vt,vgs,vds);
+          if (vAtual[netlist[i].tg]-vAtual[netlist[i].ts] < vt)
+          {
+               transistorOp [numMos] = corte;
+               printf ("corte\n");
+          }
+          else if (vAtual[netlist[i].td]-vAtual[netlist[i].ts] < vAtual[netlist[i].tg]-vAtual[netlist[i].ts] - vt)
+          {
+               transistorOp [numMos] = ohmica;
+               printf ("ohmica\n");
+          }
+          else
+          {
+               transistorOp [numMos] = saturacao;
+               printf ("saturacao\n");
+          }
           if (transistorOp [numMos] == saturacao)
           {
                gm = netlist[i].k * (netlist[i].w/netlist[i].l)* (2*((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt)) * (1 + netlist[i].lambda* (vAtual[netlist[i].td] - vAtual[netlist[i].ts]));
                gds = netlist[i].k * (netlist[i].w/netlist[i].l)* pow (((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt),2) * netlist[i].lambda;
                io = netlist[i].k * (netlist[i].w/netlist[i].l) * pow(((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt),2) * (1 + netlist[i].lambda * (vAtual[netlist[i].td] -vAtual[netlist[i].ts])) - (gm * (vAtual[netlist[i].tg] -vAtual[netlist[i].ts])) - (gds * (vAtual[netlist[i].td] -vAtual[netlist[i].ts]));
-               printf ("%f %f %f\n", gm,gds,io);
           }
           else if (transistorOp [numMos] == ohmica)
           {
@@ -522,7 +543,7 @@ int main(void)
 
           io-= (gmb * (vAtual [netlist[i].tb] -vAtual[netlist[i].ts]));
 
-          printf ("%d %d %d %d \n", netlist[i].tb, netlist[i].ts, netlist[i].td, netlist[i].tg);
+//          printf ("%d %d %d %d \n", netlist[i].tb, netlist[i].ts, netlist[i].td, netlist[i].tg);
 
           Yn[netlist[i].td][netlist[i].tb]+=gmb;
           Yn[netlist[i].ts][netlist[i].ts]+=gmb;
@@ -531,8 +552,8 @@ int main(void)
 
           Yn[netlist[i].td][netlist[i].tg]+=gm;
           Yn[netlist[i].ts][netlist[i].ts]+=gm;
-          Yn[netlist[i].td][netlist[i].tg]-=gm;
-          Yn[netlist[i].ts][netlist[i].tb]-=gm;
+          Yn[netlist[i].td][netlist[i].ts]-=gm;
+          Yn[netlist[i].ts][netlist[i].tg]-=gm;
 
           Yn[netlist[i].td][netlist[i].td]+=gds;
           Yn[netlist[i].ts][netlist[i].ts]+=gds;
