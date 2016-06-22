@@ -336,7 +336,7 @@ int main(void)
           //se tirar o g de -5v, o sistema fica singular
           //criar metodo de ransomizacao das tensoes
           vAtual[netlist[ne].td] = 0.0;
-          vAtual[netlist[ne].tg] = 5.0;
+          vAtual[netlist[ne].tg] = 5;
           linear = false;
     }
     else if (tipo=='*') { /* Comentario comeca com "*" */
