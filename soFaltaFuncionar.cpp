@@ -16,7 +16,6 @@ Versao 1.0j - 26/11/2015 Evita operacoes com zero.
 
 /*
 Elementos aceitos e linhas do netlist:
-
 Resistor:  R<nome> <no+> <no-> <resistencia>
 VCCS:      G<nome> <io+> <io-> <vi+> <vi-> <transcondutancia>
 VCVC:      E<nome> <vo+> <vo-> <vi+> <vi-> <ganho de tensao>
@@ -25,7 +24,6 @@ CCVS:      H<nome> <vo+> <vo-> <ii+> <ii-> <transresistencia>
 Fonte I:   I<nome> <io+> <io-> <corrente>
 Fonte V:   V<nome> <vo+> <vo-> <tensao>
 Amp. op.:  O<nome> <vo1> <vo2> <vi1> <vi2>
-
 As fontes F e H tem o ramo de entrada em curto
 O amplificador operacional ideal tem a saida suspensa
 Os nos podem ser nomes
@@ -46,11 +44,14 @@ Os nos podem ser nomes
 #define MAX_NOS 50
 #define TOLG 1e-9
 #define DEBUG
-#define fatorDC 10e9
-#define maxIt 50
+#define FATORDC 10e9 //fator multiplicativo para capacitores e indutores DC
+#define MAX_IT 50 //maximo de iteracoes
+#define REFVAL 1 //valor de referencia utilizado nos calculos de convergencias
+#define MINCONV 2 //minimo de iteracoes para considerar como estavel a solucao
+#define NCONV 5 // o numero de vezes que o algoritmo pode tentar calcular uma solucao
+                //mesmo que esta nao esteja convergindo
 
-//comeca o programa na analise do ponto de operacao
-bool ptOperacao = true;
+#define MAX_ERRO 1e-9
 
 typedef struct elemento { /* Elemento do netlist */
   char nome[MAX_NOME];
@@ -84,25 +85,37 @@ FILE *arquivo;
 double
   g,
   Yn[MAX_NOS+1][MAX_NOS+2],
+  //erroAtual = 0,
   vAtual[MAX_NOS+1],
-  vProximo[MAX_NOS+1];
+  vProximo[MAX_NOS+1],
+  gm = 0,
+  gds = 0,
+  io = 0;
 
-ptoOperacao transistorOp [MAX_NOS +1];
+ptoOperacao transistorOpAtual [MAX_NOS +1];
+ptoOperacao transistorOpProximo [MAX_NOS +1];
 
+bool ptOperacao = true; //comeca o programa na analise do ponto de operacao
+bool mantemModelo = true; //manter modelo do transistor
+bool convergiu = false; //indica que a solucao convergiu
+int contadorConv = 0; //conta quantas vezes os calculos deram erros menores
+int iteracoes = 0; //conta o numero de iteracoes do alogoritmo
+int vezNConvergiu = 0; //Conta a quantidade de vezes que o algoritmo nao convergiu
 
 /* Resolucao de sistema de equacoes lineares.
    Metodo de Gauss-Jordan com condensacao pivotal */
 int resolversistema(void)
 {
-  int i,j,l, a;
+ // int i,j,l, a;
   double t, p;
 
-  for (i=1; i<=nv; i++) {
-    t=0.0;
-    a=i;
+  int l;
+  for (int i=1; i<=nv; i++) {
+    double t=0.0;
+    int a=i;
     for (l=i; l<=nv; l++) {
       if (fabs(Yn[l][i])>fabs(t)) {
-	a=l;
+     a=l;
 	t=Yn[l][i];
       }
     }
@@ -150,60 +163,89 @@ int numero(char *nome)
   else {
     return i; /* no ja conhecido */
   }
+  printf("Dentro da Convergencia: %d", convergiu );
 }
 
 //void calculaCAPs (double *Cgb, double *Cgs, double *Cgd, int modoOperacao);
 
-//bool controleConvergencia ( double vAtual[], double vProximo[], int iteracoes)
-//{
-//  int cont;
-//  double maxVal = 0;
-//  double tempVar;
-//  const double
-//  if (iteracoes < maxIt)
-//  {
-//    for (cont = 0; cont <= nv; cont++)
-//    {
-//      tempVar = abs( ( vProximo[cont] - vAtual[cont] ) / vProximo[cont]);
-//      if (tempVar > maxVal)
-//        maxVal = tempVar;
-//    }
-//  }
-//  //ainda nao fechei
-//  //if maxVal <
-//}
+bool controleConvergencia ( double vAtual[], double vProximo[], int iteracoes )
+{
+  double maxVal = 0;
+  double tempVar;
+  if (iteracoes < MAX_IT && (!iteracoes))
+  {
+     for (int cont = 0; cont <= nv; cont++)
+     {
+           //define o modo como o erro sera tratado
+           if (fabs(vProximo[cont]) > REFVAL)
+             tempVar = fabs( ( vProximo[cont] - vAtual[cont] ) / vProximo[cont]);
+
+           if (vProximo[cont] < REFVAL)
+             tempVar = fabs(vProximo[cont] - vAtual[cont]);
+
+           //pega sempre o mesmo valor
+           if (tempVar > maxVal)
+             maxVal = tempVar;
+          }
+
+          //faz com o que as tensoes futuras sejam as atuais
+          for (int cont = 0; cont <= nv; cont++)
+          {
+             vAtual[cont] = vProximo[cont];
+          }
+
+          //printf("Erro: %f", MAX_ERRO);
+          printf("\nErro atual: %.10f\n", maxVal);
+          if (maxVal <= MAX_ERRO)
+          {
+              mantemModelo = true;
+              contadorConv++;
+          }
+          else if (maxVal >= MAX_ERRO)
+          {
+              vezNConvergiu++;
+          }
+          else if ((maxVal >= MAX_ERRO) && (vezNConvergiu >= NCONV))
+          {
+               mantemModelo = false;
+               contadorConv = 0;
+               //troca o modelo de transistor
+               //e reinicia a contagem
+               //se nao for pra manter o modelo
+               iteracoes = 0;
+          }
+
+          if (contadorConv >= MINCONV)
+          {
+               convergiu = true;
+               printf("Convergiu \n");
+          }
+               //Mudanca 21/06
+              //erroAtual = maxVal;
+
+                //parte onde voce coloca o transistor
+          if (mantemModelo)
+          {
+             iteracoes++;
+          }
+
+           else if (iteracoes >= MAX_IT)
+           {
+             //troca o modelo do transistor
+             //e reinicia a contagem
+             //se estourar o limite de iteracoes
+             iteracoes = 0;
+             mantemModelo = false;
+             contadorConv = 0;
+           }
+     }
+}
 
 //lembrar de limitar a tensao no substrato para que nao seja maior que a no Gate
 
 
 int main(void)
 {
-  //clrscr();
-  //system ("cls");
-//	std::complex<double> z1 (1.0, 3.0);
-//	    std::complex<double> z2 (1.0, - 4.0);
-//
-//	    printf("Working with complex numbers:\n\v");
-//
-//	    printf("Starting values: Z1 = %.2f + %.2fi\tZ2 = %.2f %+.2fi\n", z1.real(), z1.imag(), z2.real(), z2.imag());
-//
-//	    std::complex<double> sum = z1 + z2;
-//	    printf("The sum: Z1 + Z2 = %.2f %+.2fi\n", sum.real(), sum.imag());
-//
-//	    std::complex<double> difference = z1 - z2;
-//	    printf("The difference: Z1 - Z2 = %.2f %+.2fi\n", difference.real(), difference.imag());
-//
-//	    std::complex<double> product = z1 * z2;
-//	    printf("The product: Z1 x Z2 = %.2f %+.2fi\n", product.real(), product.imag());
-//
-//	    std::complex<double> quotient = z1 / z2;
-//	    printf("The quotient: Z1 / Z2 = %.2f %+.2fi\n", quotient.real(), quotient.imag());
-//
-//	    std::complex<double> conjugate = std::conj(z1);
-//	    printf("The conjugate of Z1 = %.2f %+.2fi\n", conjugate.real(), conjugate.imag());
-//
-//	    printf ("COMPILOU");
-
   printf("Programa demonstrativo de analise nodal modificada\n");
   printf("Por Antonio Carlos M. de Queiroz - acmq@coe.ufrj.br\n");
   printf("Versao %s\n",versao);
@@ -217,6 +259,17 @@ int main(void)
     printf("Arquivo %s inexistente\n",nomearquivo);
     goto denovo;
   }
+
+  for (int cont = 0; cont <= MAX_NOS; cont++ )
+  {
+     vAtual[cont] = 0.1;
+     vProximo[cont]=0;
+     //transistorOpAtual [cont] = corte;
+     //transistorOpProximo [cont] = saturacao;
+  }
+  vAtual [0] = 0;
+
+  bool linear = true;
   printf("Lendo netlist:\n");
   fgets(txt,MAX_LINHA,arquivo);
   printf("Titulo: %s",txt);
@@ -261,24 +314,34 @@ int main(void)
       netlist[ne].d=numero(nd);
     }
     else if (tipo == 'K')
-    	break;
+    	continue;
+
     else if (tipo == 'M')
-        {
-        	sscanf (p, "%10s%10s%10s%10s%10s%10s%10s%10s%10s%10s%10s%10s%10s%10s", netlist[ne].nome, ntd, ntg, nts, ntb, tTipo, nL, nW, nK, nVt, nLambda, nGama, nPhi, nLd);
-        	netlist[ne].pnmos = ((!strcmp (tTipo, "PMOS"))?0:1);
-        	netlist[ne].td=numero (ntd);
-        	netlist[ne].tg=numero (ntg);
-        	netlist[ne].ts=numero (nts);
-        	netlist[ne].tb=numero (ntb);
-        	netlist[ne].l = strtod (nL, NULL);
-        	netlist[ne].w = strtod (nW, NULL);
-        	netlist[ne].k = strtod (nK, NULL);
-        	netlist[ne].vt = strtod (nVt, NULL);
-        	netlist[ne].lambda = strtod (nLambda, NULL);
-        	netlist[ne].gama = strtod (nGama, NULL);
-        	netlist[ne].phi = strtod (nPhi, NULL);
-        	netlist[ne].ld = strtod (nLd, NULL);
-        }
+    {
+          sscanf (p, "%10s%10s%10s%10s%10s%10s%10s%10s%10s%10s%10s%10s%10s", ntd, ntg, nts, ntb, tTipo, nL, nW, nK, nVt, nLambda, nGama, nPhi, nLd);
+          printf("%s %s %s %s %s\n",netlist[ne].nome,ntd,ntg,nts,ntb);
+          netlist[ne].pnmos = ((!strcmp (tTipo, "PMOS"))?0:1);
+          netlist[ne].td=numero (ntd);
+          netlist[ne].tg=numero (ntg);
+          netlist[ne].ts=numero (nts);
+          netlist[ne].tb=numero (ntb);
+          netlist[ne].l = strtod (nL, NULL);
+          netlist[ne].w = strtod (nW, NULL);
+          netlist[ne].k = strtod (nK, NULL);
+          netlist[ne].vt = strtod (nVt, NULL);
+          netlist[ne].lambda = strtod (nLambda, NULL);
+          netlist[ne].gama = strtod (nGama, NULL);
+          netlist[ne].phi = strtod (nPhi, NULL);
+          netlist[ne].ld = strtod (nLd, NULL);
+
+          //se tirar o g de -5v, o sistema fica singular
+          //criar metodo de ransomizacao das tensoes
+          //vAtual[netlist[ne].td] = vAtual[netlist[ne].tg] + netlist[ne].vt + 1;
+         // printf ("vd %f vs %f\n", vAtual[netlist[ne].td], vAtual[netlist[ne].ts]);
+          //vAtual[netlist[ne].tg] = netlist[ne].vt + 0.6;
+          //vAtual[netlist[ne].tg] = 5;
+          linear = false;
+    }
     else if (tipo=='*') { /* Comentario comeca com "*" */
       printf("Comentario: %s",txt);
       ne--;
@@ -340,182 +403,263 @@ int main(void)
       printf("Correntes jx e jy: %d, %d\n",netlist[i].x,netlist[i].y);
   }
   getch();
-  /* Monta o sistema nodal modificado */
-  printf("O circuito tem %d nos, %d variaveis e %d elementos\n",nn,nv,ne);
-  getch();
-  /* Zera sistema */
-  for (i=0; i<=nv; i++) {
-    //inicializa os vetores utilizdos na analise de convergencia
-    vAtual[i] = 0;
-    vProximo[i]=0;
-    transistorOp [i] = saturacao;
-    for (j=0; j<=nv+1; j++)
-    {
-      Yn[i][j]=0;
-    }
-
-  }
-  /* Monta estampas */
-  int j = 0;
-  for (i=1; i<=ne; i++) {
-    tipo=netlist[i].nome[0];
-    if (tipo=='R') {
-      g=1/netlist[i].valor;
-      Yn[netlist[i].a][netlist[i].a]+=g;
-      Yn[netlist[i].b][netlist[i].b]+=g;
-      Yn[netlist[i].a][netlist[i].b]-=g;
-      Yn[netlist[i].b][netlist[i].a]-=g;
-    }
-    else if (tipo=='G') {
-      g=netlist[i].valor;
-      Yn[netlist[i].a][netlist[i].c]+=g;
-      Yn[netlist[i].b][netlist[i].d]+=g;
-      Yn[netlist[i].a][netlist[i].d]-=g;
-      Yn[netlist[i].b][netlist[i].c]-=g;
-    }
-    else if (tipo=='I') {
-      g=netlist[i].valor;
-      Yn[netlist[i].a][nv+1]-=g;
-      Yn[netlist[i].b][nv+1]+=g;
-    }
-    else if (tipo=='V') {
-      Yn[netlist[i].a][netlist[i].x]+=1;
-      Yn[netlist[i].b][netlist[i].x]-=1;
-      Yn[netlist[i].x][netlist[i].a]-=1;
-      Yn[netlist[i].x][netlist[i].b]+=1;
-      Yn[netlist[i].x][nv+1]-=netlist[i].valor;
-    }
-    else if (tipo=='E') {
-      g=netlist[i].valor;
-      Yn[netlist[i].a][netlist[i].x]+=1;
-      Yn[netlist[i].b][netlist[i].x]-=1;
-      Yn[netlist[i].x][netlist[i].a]-=1;
-      Yn[netlist[i].x][netlist[i].b]+=1;
-      Yn[netlist[i].x][netlist[i].c]+=g;
-      Yn[netlist[i].x][netlist[i].d]-=g;
-    }
-    else if (tipo=='F') {
-      g=netlist[i].valor;
-      Yn[netlist[i].a][netlist[i].x]+=g;
-      Yn[netlist[i].b][netlist[i].x]-=g;
-      Yn[netlist[i].c][netlist[i].x]+=1;
-      Yn[netlist[i].d][netlist[i].x]-=1;
-      Yn[netlist[i].x][netlist[i].c]-=1;
-      Yn[netlist[i].x][netlist[i].d]+=1;
-    }
-    else if (tipo=='H') {
-      g=netlist[i].valor;
-      Yn[netlist[i].a][netlist[i].y]+=1;
-      Yn[netlist[i].b][netlist[i].y]-=1;
-      Yn[netlist[i].c][netlist[i].x]+=1;
-      Yn[netlist[i].d][netlist[i].x]-=1;
-      Yn[netlist[i].y][netlist[i].a]-=1;
-      Yn[netlist[i].y][netlist[i].b]+=1;
-      Yn[netlist[i].x][netlist[i].c]-=1;
-      Yn[netlist[i].x][netlist[i].d]+=1;
-      Yn[netlist[i].y][netlist[i].x]+=g;
-    }
-    else if (tipo=='C' || tipo=='L') {
-
-      //se for capacitor, a condutancia em DC tende a 0
-      if (tipo=='C')
-        g = netlist[i].valor / fatorDC;
-
-      //se for indutor, a indutancia em Dc tende a infinito
-      if (tipo=='L')
-        g = netlist[i].valor *fatorDC;
-
-      Yn[netlist[i].a][netlist[i].a]+=g;
-      Yn[netlist[i].b][netlist[i].b]+=g;
-      Yn[netlist[i].a][netlist[i].b]-=g;
-      Yn[netlist[i].b][netlist[i].a]-=g;
-    }
-    else if (tipo=='O') {
-      Yn[netlist[i].a][netlist[i].x]+=1;
-      Yn[netlist[i].b][netlist[i].x]-=1;
-      Yn[netlist[i].x][netlist[i].c]+=1;
-      Yn[netlist[i].x][netlist[i].d]-=1;
-    }
-    else if (tipo=='M')
-    {
-    	double gm = 0;
-    	double gds = 0;
-	    double io = 0;
-    	double vt = netlist[i].vt + netlist[i].gama * (sqrt(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]) - sqrt(netlist[i].phi))) ;
-    	if (transistorOp [j] == saturacao)
-    	{
-    		gm = netlist[i].k * (netlist[i].w/netlist[i].l)* (2*((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt)) * (1 + netlist[i].lambda* (vAtual[netlist[i].td] - vAtual[netlist[i].ts]));
-    		gds = netlist[i].k * (netlist[i].w/netlist[i].l)* pow (((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt),2) * netlist[i].lambda;
-    		io = netlist[i].k * (netlist[i].w/netlist[i].l) * pow(((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt),2) * (1 + netlist[i].lambda * (vAtual[netlist[i].td] -vAtual[netlist[i].ts])) - (gm * (vAtual[netlist[i].tg] -vAtual[netlist[i].ts])) - (gds * (vAtual[netlist[i].td] -vAtual[netlist[i].ts]));
-    	}
-    	else if (transistorOp [j] == ohmica)
-    	{
-    		gm = netlist[i].k * (netlist[i].w/netlist[i].l)*(2* (vAtual[netlist[i].td] -vAtual[netlist[i].ts]))*(1+ netlist[i].lambda* (vAtual[netlist[i].td]-vAtual[netlist[i].ts]));
-    		gds = netlist[i].k * (netlist[i].w/netlist[i].l) * (2*((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt) - 2 * (vAtual[netlist[i].td] -vAtual[netlist[i].ts]) + 4* netlist[i].lambda * ( (vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt) * (vAtual[netlist[i].td] -vAtual[netlist[i].ts]) - 3*netlist[i].lambda * pow ( (vAtual[netlist[i].td] -vAtual[netlist[i].ts]),2));
-    		io = netlist[i].k * (netlist[i].w/netlist[i].l) * (2* ((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt)*(vAtual[netlist[i].td] -vAtual[netlist[i].ts]) - pow ((vAtual[netlist[i].td] -vAtual[netlist[i].ts]),2)) - (gm * (vAtual[netlist[i].tg] -vAtual[netlist[i].ts])) - (gds * (vAtual[netlist[i].td] -vAtual[netlist[i].ts]));
-    	}
 
 
-		double gmb = (gm*netlist[i].gama)/(2*sqrt(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts])));
-		gds = (gds==0?0:1/gds);
+  int vezes = 0;
+//  for (int cont = 0; cont <= nv+1; cont++ )
+//  {
+//     vAtual[cont] = 0;
+//     vProximo[cont]=0;
+//     transistorOpAtual [cont] = saturacao;
+//  }
 
-		io-= (gmb * (vAtual [netlist[i].tb] -vAtual[netlist[i].ts]));
-
-		Yn[netlist[i].td][netlist[i].tb]+=gmb;
-		Yn[netlist[i].ts][netlist[i].ts]+=gmb;
-		Yn[netlist[i].td][netlist[i].ts]-=gmb;
-		Yn[netlist[i].ts][netlist[i].tb]-=gmb;
-
-		Yn[netlist[i].td][netlist[i].tg]+=gm;
-		Yn[netlist[i].ts][netlist[i].ts]+=gm;
-		Yn[netlist[i].td][netlist[i].tg]-=gm;
-		Yn[netlist[i].ts][netlist[i].tb]-=gm;
-
-		Yn[netlist[i].td][netlist[i].td]+=g;
-		Yn[netlist[i].ts][netlist[i].ts]+=g;
-		Yn[netlist[i].td][netlist[i].ts]-=g;
-	    Yn[netlist[i].ts][netlist[i].td]-=g;
-
-	    Yn[netlist[i].td][nv+1]-=io;
-	    Yn[netlist[i].ts][nv+1]+=io;
-
-    	j++;
-    }
-#ifdef DEBUG
-    /* Opcional: Mostra o sistema apos a montagem da estampa */
-    printf("Sistema apos a estampa de %s\n",netlist[i].nome);
-    for (k=1; k<=nv; k++) {
-      for (j=1; j<=nv+1; j++)
-        if (Yn[k][j]!=0) printf("%+3.1f ",Yn[k][j]);
-        else printf(" ... ");
-      printf("\n");
-    }
+  while (!convergiu)
+  {
+    /* Monta o sistema nodal modificado */
+    printf("O circuito tem %d nos, %d variaveis e %d elementos\n",nn,nv,ne);
     getch();
-#endif
-  }
-  /* Resolve o sistema */
-  if (resolversistema()) {
-    getch();
-    //exit;
-    return 1;
-  }
-#ifdef DEBUG
-  /* Opcional: Mostra o sistema resolvido */
-  printf("Sistema resolvido:\n");
-  for (i=1; i<=nv; i++) {
-      for (j=1; j<=nv+1; j++)
-        if (Yn[i][j]!=0) printf("%+3.1f ",Yn[i][j]);
-        else printf(" ... ");
-      printf("\n");
+    /* Zera sistema */
+    for (int i=0; i<=nv; i++) {
+      //inicializa os vetores utilizdos na analise de convergencia
+      for (int j=0; j<=nv+1; j++)
+      {
+        Yn[i][j]=0;
+      }
     }
-  getch();
-#endif
-  /* Mostra solucao */
-  printf("Solucao:\n");
-  strcpy(txt,"Tensao");
-  for (i=1; i<=nv; i++) {
-    if (i==nn+1) strcpy(txt,"Corrente");
-    printf("%s %s: %g\n",txt,lista[i],Yn[i][nv+1]);
+    /* Monta estampas */
+    int numMos = 0;
+    for (int i=1; i<=ne; i++) {
+      tipo=netlist[i].nome[0];
+      printf ("\ntipo :%c, i:%d\n", tipo, i);
+      if (tipo=='R') {
+        g=1/netlist[i].valor;
+        Yn[netlist[i].a][netlist[i].a]+=g;
+        Yn[netlist[i].b][netlist[i].b]+=g;
+        Yn[netlist[i].a][netlist[i].b]-=g;
+        Yn[netlist[i].b][netlist[i].a]-=g;
+      }
+      else if (tipo=='G') {
+        g=netlist[i].valor;
+        Yn[netlist[i].a][netlist[i].c]+=g;
+        Yn[netlist[i].b][netlist[i].d]+=g;
+        Yn[netlist[i].a][netlist[i].d]-=g;
+        Yn[netlist[i].b][netlist[i].c]-=g;
+      }
+      else if (tipo=='I') {
+        g=netlist[i].valor;
+        Yn[netlist[i].a][nv+1]-=g;
+        Yn[netlist[i].b][nv+1]+=g;
+      }
+      else if (tipo=='V') {
+        Yn[netlist[i].a][netlist[i].x]+=1;
+        Yn[netlist[i].b][netlist[i].x]-=1;
+        Yn[netlist[i].x][netlist[i].a]-=1;
+        Yn[netlist[i].x][netlist[i].b]+=1;
+        //if ((linear) || (vezes))
+          Yn[netlist[i].x][nv+1]-=netlist[i].valor;
+      }
+      else if (tipo=='E') {
+        g=netlist[i].valor;
+        Yn[netlist[i].a][netlist[i].x]+=1;
+        Yn[netlist[i].b][netlist[i].x]-=1;
+        Yn[netlist[i].x][netlist[i].a]-=1;
+        Yn[netlist[i].x][netlist[i].b]+=1;
+        Yn[netlist[i].x][netlist[i].c]+=g;
+        Yn[netlist[i].x][netlist[i].d]-=g;
+      }
+      else if (tipo=='F') {
+        g=netlist[i].valor;
+        Yn[netlist[i].a][netlist[i].x]+=g;
+        Yn[netlist[i].b][netlist[i].x]-=g;
+        Yn[netlist[i].c][netlist[i].x]+=1;
+        Yn[netlist[i].d][netlist[i].x]-=1;
+        Yn[netlist[i].x][netlist[i].c]-=1;
+        Yn[netlist[i].x][netlist[i].d]+=1;
+      }
+      else if (tipo=='H') {
+        g=netlist[i].valor;
+        Yn[netlist[i].a][netlist[i].y]+=1;
+        Yn[netlist[i].b][netlist[i].y]-=1;
+        Yn[netlist[i].c][netlist[i].x]+=1;
+        Yn[netlist[i].d][netlist[i].x]-=1;
+        Yn[netlist[i].y][netlist[i].a]-=1;
+        Yn[netlist[i].y][netlist[i].b]+=1;
+        Yn[netlist[i].x][netlist[i].c]-=1;
+        Yn[netlist[i].x][netlist[i].d]+=1;
+        Yn[netlist[i].y][netlist[i].x]+=g;
+      }
+      else if (tipo=='C' || tipo=='L') {
+
+        //se for capacitor, a condutancia em DC tende a 0
+        if (tipo=='C')
+          g = netlist[i].valor / FATORDC;
+
+        //se for indutor, a condutancia em DC tende a infinito
+        if (tipo=='L')
+          g = netlist[i].valor *FATORDC;
+
+        Yn[netlist[i].a][netlist[i].a]+=g;
+        Yn[netlist[i].b][netlist[i].b]+=g;
+        Yn[netlist[i].a][netlist[i].b]-=g;
+        Yn[netlist[i].b][netlist[i].a]-=g;
+      }
+     else if (tipo=='M')
+     {
+          g = ((double) 5.0) / FATORDC;
+          gm = 0;
+          gds = 0;
+          io = 0;
+          //printf ("");
+          printf ("vd %f vs %f\n", vAtual[netlist[i].td],vAtual[netlist[i].ts] );
+          if (vAtual[netlist[i].td] < vAtual[netlist[i].ts])
+          {
+        	  printf ("vd > vs\n");
+        	  int aux  = netlist[i].td;
+        	  netlist[i].td = netlist[i].ts;
+        	  netlist[i].ts = aux;
+          }
+          double vgs = vAtual[netlist[i].tg]-vAtual[netlist[i].ts];
+          double vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
+          double vt = netlist[i].vt + netlist[i].gama * (sqrt(fabs(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))) - sqrt(fabs(netlist[i].phi)));
+          printf ("vt: %f  vgs: %f vds: %f vs: %f ts %d\n", vt,vgs,vds, vAtual[netlist[i].ts], netlist[i].ts);
+          if (vAtual[netlist[i].tg]-vAtual[netlist[i].ts] < vt)
+          {
+               transistorOpAtual [numMos] = corte;
+               printf ("corte\n");
+          }
+          else if (vAtual[netlist[i].td]-vAtual[netlist[i].ts] < vAtual[netlist[i].tg]-vAtual[netlist[i].ts] - vt)
+          {
+               transistorOpAtual [numMos] = ohmica;
+               printf ("ohmica\n");
+          }
+          else
+          {
+               transistorOpAtual [numMos] = saturacao;
+               printf ("saturacao\n");
+          }
+          if (transistorOpAtual [numMos] == saturacao)
+          {
+               gm = netlist[i].k * (netlist[i].w/netlist[i].l)* (2*((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt)) * (1 + netlist[i].lambda* (vAtual[netlist[i].td] - vAtual[netlist[i].ts]));
+               gds = netlist[i].k * (netlist[i].w/netlist[i].l)* pow (((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt),2) * netlist[i].lambda;
+               io = netlist[i].k * (netlist[i].w/netlist[i].l) * pow(((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt),2) * (1 + netlist[i].lambda * (vAtual[netlist[i].td] -vAtual[netlist[i].ts])) - (gm * (vAtual[netlist[i].tg] -vAtual[netlist[i].ts])) - (gds * (vAtual[netlist[i].td] -vAtual[netlist[i].ts]));
+               printf ("saturacao\n");
+          }
+          else if (transistorOpAtual [numMos] == ohmica)
+          {
+               gm = netlist[i].k * (netlist[i].w/netlist[i].l)*(2* (vAtual[netlist[i].td] -vAtual[netlist[i].ts]))*(1+ netlist[i].lambda* (vAtual[netlist[i].td]-vAtual[netlist[i].ts]));
+               gds = netlist[i].k * (netlist[i].w/netlist[i].l) * (2*((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt) - 2 * (vAtual[netlist[i].td] -vAtual[netlist[i].ts]) + 4* netlist[i].lambda * ( (vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt) * (vAtual[netlist[i].td] -vAtual[netlist[i].ts]) - 3*netlist[i].lambda * pow ( (vAtual[netlist[i].td] -vAtual[netlist[i].ts]),2));
+               io = netlist[i].k * (netlist[i].w/netlist[i].l) * (2* ((vAtual[netlist[i].tg] -vAtual[netlist[i].ts]) - vt)*(vAtual[netlist[i].td] -vAtual[netlist[i].ts]) - pow ((vAtual[netlist[i].td] -vAtual[netlist[i].ts]),2)) - (gm * (vAtual[netlist[i].tg] -vAtual[netlist[i].ts])) - (gds * (vAtual[netlist[i].td] -vAtual[netlist[i].ts]));
+          }
+
+          double gmb = (gm*netlist[i].gama)/(2*sqrt(fabs(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))));
+
+          io-= (gmb * (vAtual [netlist[i].tb] -vAtual[netlist[i].ts]));
+
+         printf ("gm %f gmb %f  gds %f io %f \n", gm, gmb, gds, io);
+
+          Yn[netlist[i].td][netlist[i].tb]+=gmb;
+          Yn[netlist[i].ts][netlist[i].ts]+=gmb;
+          Yn[netlist[i].td][netlist[i].ts]-=gmb;
+          Yn[netlist[i].ts][netlist[i].tb]-=gmb;
+
+          Yn[netlist[i].td][netlist[i].tg]+=gm;
+          Yn[netlist[i].ts][netlist[i].ts]+=gm;
+          Yn[netlist[i].td][netlist[i].ts]-=gm;
+          Yn[netlist[i].ts][netlist[i].tg]-=gm;
+
+          Yn[netlist[i].td][netlist[i].td]+=gds;
+          Yn[netlist[i].ts][netlist[i].ts]+=gds;
+          Yn[netlist[i].td][netlist[i].ts]-=gds;
+          Yn[netlist[i].ts][netlist[i].td]-=gds;
+
+
+         Yn[netlist[i].td][netlist[i].td]+=g;
+         Yn[netlist[i].tg][netlist[i].tg]+=g;
+         Yn[netlist[i].td][netlist[i].tg]-=g;
+         Yn[netlist[i].tg][netlist[i].td]-=g;
+
+         Yn[netlist[i].ts][netlist[i].ts]+=g;
+         Yn[netlist[i].tg][netlist[i].tg]+=g;
+         Yn[netlist[i].ts][netlist[i].tg]-=g;
+         Yn[netlist[i].tg][netlist[i].ts]-=g;
+
+         Yn[netlist[i].tb][netlist[i].tb]+=g;
+         Yn[netlist[i].tg][netlist[i].tg]+=g;
+         Yn[netlist[i].tb][netlist[i].tg]-=g;
+         Yn[netlist[i].tg][netlist[i].tb]-=g;
+
+          Yn[netlist[i].td][nv+1]-=io;
+          Yn[netlist[i].ts][nv+1]+=io;
+
+          numMos++;
+     }
+      else if (tipo=='O') {
+        Yn[netlist[i].a][netlist[i].x]+=1;
+        Yn[netlist[i].b][netlist[i].x]-=1;
+        Yn[netlist[i].x][netlist[i].c]+=1;
+        Yn[netlist[i].x][netlist[i].d]-=1;
+      }
+
+      //utilizar esse if para modificar as solucoes
+      //atribui o valor calculado na ultima iteracao
+      //a matriz que esta sendo calculada no momento
+//      if (Linear && vezes)
+//      {
+//        for (int i=1; i<=nv; i++)
+//        {
+//          Yn[i][nv+1] = vAtual[i];
+//          //usar uma randomizacao do C caso queira
+//        }
+//      }
+
+  #ifdef DEBUG
+      /* Opcional: Mostra o sistema apos a montagem da estampa */
+      printf("Sistema apos a estampa de %s\n",netlist[i].nome);
+      for (k=1; k<=nv; k++) {
+        for (j=1; j<=nv+1; j++)
+          if (Yn[k][j]!=0) printf("%+3.3f ",Yn[k][j]);
+          else printf(" ... ");
+        printf("\n");
+      }
+      getch();
+  #endif
+    }
+    /* Resolve o sistema */
+    if (resolversistema()) {
+      getch();
+      //exit;
+      return 1;
+    }
+  #ifdef DEBUG
+    /* Opcional: Mostra o sistema resolvido */
+    printf("Sistema resolvido:\n");
+    for (i=1; i<=nv; i++) {
+        for (j=1; j<=nv+1; j++)
+          if (Yn[i][j]!=0) printf("%+3.1f ",Yn[i][j]);
+          else printf(" ... ");
+        printf("\n");
+      }
+    getch();
+  #endif
+    /* Mostra solucao */
+    printf("Solucao:\n");
+    strcpy(txt,"Tensao");
+    for (i=1; i<=nv; i++) {
+      if (i==nn+1) strcpy(txt,"Corrente");
+      printf("%s %s: %g\n",txt,lista[i],Yn[i][nv+1]);
+      vProximo[i] = Yn[i] [nv+1];
+      printf("VProximo: %f\n", vProximo[i] );
+    }
+    for (int cont =0; cont <MAX_NOS+1; cont++)
+       	transistorOpAtual[cont] = transistorOpProximo [cont];
+    vezes++;
+    //se for nao linear, utiliza Newton-Raphson
+    if (!linear)
+    {
+      controleConvergencia (vAtual, vProximo, iteracoes);
+    }
+    else
+      convergiu = true;
   }
   getch();
   return 0;
