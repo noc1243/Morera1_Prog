@@ -250,8 +250,8 @@ void CalculaCapacitancias (elemento *netlist)
 	if (netlist->transistorOp == corte)
 	{
 		netlist->cgb = netlist->cOx * netlist->w * netlist->l;
-		netlist->cgs = 0;
-		netlist->cgd = 0;
+		netlist->cgs = netlist->cOx * netlist->w * netlist->ld;
+		netlist->cgd = netlist->cOx * netlist->w * netlist->ld;
 	}
 	else if (netlist->transistorOp == ohmica)
 	{
@@ -362,7 +362,7 @@ int main(void)
           netlist[ne].ts=numero (nts);
           netlist[ne].tb=numero (ntb);
           netlist[ne].transistorOp = corte;
-          double u = (netlist[ne].pnmos == nmos?0.0025:0.0067);
+          double u = (netlist[ne].pnmos == nmos?0.02:0.05);
           netlist[ne].cOx = 2* netlist[ne].k/u;
 
           linear = false;
