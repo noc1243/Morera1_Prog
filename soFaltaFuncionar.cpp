@@ -382,7 +382,7 @@ int main(void)
   nn=nv;
   for (i=1; i<=ne; i++) {
     tipo=netlist[i].nome[0];
-    if (tipo=='V' || tipo=='E' || tipo=='F' || tipo=='O') {
+    if (tipo=='V' || tipo=='E' || tipo=='F' || tipo=='O' || tipo=='L') {
       nv++;
       if (nv>MAX_NOS) {
         printf("As correntes extra excederam o numero de variaveis permitido (%d)\n",MAX_NOS);
@@ -413,7 +413,7 @@ int main(void)
   printf("Netlist interno final\n");
   for (i=1; i<=ne; i++) {
     tipo=netlist[i].nome[0];
-    if (tipo=='R' || tipo=='I' || tipo=='V') {
+    if (tipo=='R' || tipo=='I' || tipo=='V' || tipo=='C') {
       printf("%s %d %d %g\n",netlist[i].nome,netlist[i].a,netlist[i].b,netlist[i].valor);
     }
     else if (tipo=='G' || tipo=='E' || tipo=='F' || tipo=='H') {
@@ -422,7 +422,7 @@ int main(void)
     else if (tipo=='O') {
       printf("%s %d %d %d %d\n",netlist[i].nome,netlist[i].a,netlist[i].b,netlist[i].c,netlist[i].d);
     }
-    if (tipo=='V' || tipo=='E' || tipo=='F' || tipo=='O')
+    if (tipo=='V' || tipo=='L' || tipo=='E' || tipo=='F' || tipo=='O')
       printf("Corrente jx: %d\n",netlist[i].x);
     else if (tipo=='H')
       printf("Correntes jx e jy: %d, %d\n",netlist[i].x,netlist[i].y);
@@ -516,11 +516,20 @@ int main(void)
 
         //se for capacitor, a condutancia em DC tende a 0
         if (tipo=='C')
-          g = netlist[i].valor / FATORDC;
+          g = 1 / FATORDC;
 
         //se for indutor, a condutancia em DC tende a infinito
         if (tipo=='L')
-          g = netlist[i].valor *FATORDC;
+          g = 0;
+
+        if (tipo=='L')
+        {
+               Yn[netlist[i].a][netlist[i].x]+=1;
+               Yn[netlist[i].b][netlist[i].x]-=1;
+               Yn[netlist[i].x][netlist[i].a]-=1;
+               Yn[netlist[i].x][netlist[i].b]+=1;
+               Yn[netlist[i].x][netlist[i].x]+=1/FATORDC;
+       }
 
         Yn[netlist[i].a][netlist[i].a]+=g;
         Yn[netlist[i].b][netlist[i].b]+=g;
@@ -553,7 +562,7 @@ int main(void)
           double vgs = vAtual[netlist[i].tg]-vAtual[netlist[i].ts];
           double vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
           double vbs = vAtual[netlist[i].tb]-vAtual[netlist[i].ts];
-          double vt = netlist[i].vt + netlist[i].gama * (sqrt(fabs(netlist[i].phi - vbs)) - sqrt(fabs(netlist[i].phi)));
+          double vt = netlist[i].vt + netlist[i].gama * (sqrt((netlist[i].phi - vbs)) - sqrt((netlist[i].phi)));
 
 
           #ifdef DEBUG
@@ -584,15 +593,15 @@ int main(void)
           }
           if (netlist[i].transistorOp == saturacao)
           {
-               gm = netlist[i].k * (netlist[i].w/netlist[i].l)* (2*(vgs - vt)) * (1 + netlist[i].lambda* vds);
-               gds = netlist[i].k * (netlist[i].w/netlist[i].l)* pow ((vgs - vt),2) * netlist[i].lambda;
-               io = netlist[i].k * (netlist[i].w/netlist[i].l) * pow((vgs - vt),2) * (1 + netlist[i].lambda * vds) - (gm * vgs) - (gds * vds);
+               gm = netlist[i].k * (netlist[i].w/netlist[i].l)* (2.0*(vgs - vt)) * (1 + netlist[i].lambda* vds);
+               gds = netlist[i].k * (netlist[i].w/netlist[i].l)* pow ((vgs - vt),2.0) * netlist[i].lambda;
+               io = netlist[i].k * (netlist[i].w/netlist[i].l) * pow((vgs - vt),2.0) * (1 + netlist[i].lambda * vds) - (gm * vgs) - (gds * vds);
           }
           else if (netlist[i].transistorOp == ohmica)
           {
-               gm = netlist[i].k * (netlist[i].w/netlist[i].l)*(2* vds)*(1+ netlist[i].lambda* vds);
-               gds = netlist[i].k * (netlist[i].w/netlist[i].l) * (2*(vgs - vt) - 2 * vds + 4* netlist[i].lambda * (vgs - vt) * vds - 3*netlist[i].lambda * pow (vds,2));
-               io = netlist[i].k * (netlist[i].w/netlist[i].l) * (2* (vgs - vt)*vds - pow (vds,2)) - (gm * vgs) - (gds * vds);
+               gm = netlist[i].k * (netlist[i].w/netlist[i].l)*(2.0* vds)*(1+ netlist[i].lambda* vds);
+               gds = netlist[i].k * (netlist[i].w/netlist[i].l) * (2.0*(vgs - vt) - 2 * vds + 4.0* netlist[i].lambda * (vgs - vt) * vds - 3.0*netlist[i].lambda * pow (vds,2.0));
+               io = netlist[i].k * (netlist[i].w/netlist[i].l) * (2.0* (vgs - vt)*vds - pow (vds,2.0)) - (gm * vgs) - (gds * vds);
           }
 
           double gmb = (gm*netlist[i].gama)/(2*sqrt(fabs(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))));
@@ -600,7 +609,7 @@ int main(void)
           io-= (gmb * vbs);
 
 		  #ifdef DEBUG
-          	  printf ("gm %f gmb %f  gds %f io %f \n", gm, gmb, gds, io);
+          	  printf ("gm %e gmb %e  gds %e io %e \n", gm, gmb, gds, io);
 		  #endif
 
           Yn[netlist[i].td][netlist[i].tb]+=gmb;
@@ -711,6 +720,7 @@ int main(void)
       if (tipo == 'M')
       {
     	  CalculaCapacitancias (&netlist[i]);
+    	  printf ("Cgs= %e Cgd= %e Cgb= %e \n", netlist[i].cgs, netlist[i].cgd, netlist[i].cgb);
       }
 
   }
