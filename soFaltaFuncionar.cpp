@@ -355,14 +355,14 @@ int main(void)
     else if (tipo == 'M')
     {
           sscanf (p, "%10s%10s%10s%10s%10s L=%lf W=%lf %lf%lf%lf%lf%lf%lf", ntd, ntg, nts, ntb, tTipo, &netlist[ne].l, &netlist[ne].w, &netlist[ne].k, &netlist[ne].vt, &netlist[ne].lambda, &netlist[ne].gama, &netlist[ne].phi, &netlist[ne].ld);
-          printf("%s %s %s %s %s\n",netlist[ne].nome,ntd,ntg,nts,ntb);
-          netlist[ne].pnmos = ((!strcmp (tTipo, "PMOS"))?nmos:pmos);
+          printf("%s %s %s %s %s %s\n",netlist[ne].nome,ntd,ntg,nts,ntb, tTipo);
+          netlist[ne].pnmos = ((tTipo[0] =='N')?nmos:pmos);
           netlist[ne].td=numero (ntd);
           netlist[ne].tg=numero (ntg);
           netlist[ne].ts=numero (nts);
           netlist[ne].tb=numero (ntb);
           netlist[ne].transistorOp = corte;
-          double u = (netlist[ne].pnmos == nmos?0.02:0.05);
+          double u = (netlist[ne].pnmos == nmos?0.05:0.02);
           netlist[ne].cOx = 2* netlist[ne].k/u;
 
           linear = false;
@@ -477,10 +477,10 @@ int main(void)
       else if (tipo=='V') {
         Yn[netlist[i].a][netlist[i].x]+=1;
         Yn[netlist[i].b][netlist[i].x]-=1;
-        Yn[netlist[i].x][netlist[i].a]-=1;
-        Yn[netlist[i].x][netlist[i].b]+=1;
+        Yn[netlist[i].x][netlist[i].b]-=1;
+        Yn[netlist[i].x][netlist[i].a]+=1;
         //if ((linear) || (vezes))
-          Yn[netlist[i].x][nv+1]-=netlist[i].valor;
+          Yn[netlist[i].x][nv+1]+=netlist[i].valor;
       }
       else if (tipo=='E') {
         g=netlist[i].valor;
@@ -543,27 +543,31 @@ int main(void)
           gds = 0;
           io = 0;
 
-		  #ifdef DEBUG
-          	  printf ("vd %f vs %f\n", vAtual[netlist[i].td],vAtual[netlist[i].ts] );
-		  #endif
+          double vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
 
-
-          if (vAtual[netlist[i].td] < vAtual[netlist[i].ts])
+          if ((vds < 0 && netlist[i].pnmos == nmos) || (vds > 0 && netlist[i].pnmos == pmos))
           {
-			  #ifdef DEBUG
-        	  	  printf ("vd > vs\n");
-			  #endif
-        	  int aux  = netlist[i].td;
-        	  netlist[i].td = netlist[i].ts;
-        	  netlist[i].ts = aux;
+           	  int aux  = netlist[i].td;
+           	  netlist[i].td = netlist[i].ts;
+           	  netlist[i].ts = aux;
           }
 
+		  #ifdef DEBUG
+          	  printf ("vd %f vs %f vb %f vg %f\n", vAtual[netlist[i].td],vAtual[netlist[i].ts], vAtual[netlist[i].tb], vAtual[netlist[i].tg]);
+		  #endif
 
           double vgs = vAtual[netlist[i].tg]-vAtual[netlist[i].ts];
-          double vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
+          vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
           double vbs = vAtual[netlist[i].tb]-vAtual[netlist[i].ts];
-          double vt = netlist[i].vt + netlist[i].gama * (sqrt((netlist[i].phi - vbs)) - sqrt((netlist[i].phi)));
 
+          vgs *= (netlist[i].pnmos==nmos?1:-1);
+          vds *= (netlist[i].pnmos==nmos?1:-1);
+
+          vbs = (fabs(vbs)>netlist[i].phi/2.0?netlist[i].phi/2.0:vbs);
+
+          double vt = netlist[i].vt + netlist[i].gama * (sqrt((netlist[i].phi - fabs(vbs))) - sqrt((netlist[i].phi)));
+
+          vbs *= (netlist[i].pnmos==nmos?1:-1);
 
           #ifdef DEBUG
           	  printf ("vt: %f  vgs: %f vds: %f vs: %f ts %d\n", vt,vgs,vds, vAtual[netlist[i].ts], netlist[i].ts);
@@ -591,6 +595,7 @@ int main(void)
               	  printf ("saturacao\n");
 			  #endif
           }
+
           if (netlist[i].transistorOp == saturacao)
           {
                gm = netlist[i].k * (netlist[i].w/netlist[i].l)* (2.0*(vgs - vt)) * (1 + netlist[i].lambda* vds);
@@ -607,10 +612,11 @@ int main(void)
           double gmb = (gm*netlist[i].gama)/(2*sqrt(fabs(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))));
 
           io-= (gmb * vbs);
+          io*=(netlist[i].pnmos == pmos?-1:1);
 
-		  #ifdef DEBUG
-          	  printf ("gm %e gmb %e  gds %e io %e \n", gm, gmb, gds, io);
-		  #endif
+	   	 #ifdef DEBUG
+		 	   printf ("gm %e gmb %e  gds %e io %e \n\n", gm, gmb, gds, io);
+		 #endif
 
           Yn[netlist[i].td][netlist[i].tb]+=gmb;
           Yn[netlist[i].ts][netlist[i].ts]+=gmb;
@@ -672,7 +678,7 @@ int main(void)
       for (k=1; k<=nv; k++) {
         for (j=1; j<=nv+1; j++)
           if (Yn[k][j]!=0) printf("%+3.3f ",Yn[k][j]);
-          else printf(" ... ");
+          else printf(" ..... ");
         printf("\n");
       }
       getch();
@@ -690,7 +696,7 @@ int main(void)
     for (i=1; i<=nv; i++) {
         for (j=1; j<=nv+1; j++)
           if (Yn[i][j]!=0) printf("%+3.1f ",Yn[i][j]);
-          else printf(" ... ");
+          else printf(" ..... ");
         printf("\n");
       }
     getch();
