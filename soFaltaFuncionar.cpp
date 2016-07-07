@@ -56,7 +56,8 @@ Os nos podem ser nomes
 #define UM 0.9999999999990
 #define ZERO 0.0000000000001
 typedef std::complex<double> dcomplex;
-#define PI  (4*atan(1))
+//#define PI  (4*atan(1))
+#define PI acos(-1.0)
 #define MAX_ERRO 1e-9
 #define  NMAX  50
 
@@ -621,18 +622,18 @@ int main(void)
 //     else printf(" ......... ");
 //          printf("\n");
 //     }
-        double eps=1e-350; double dta=1e-350; int M=1; int it;
-
-        for (int col =1; col <nv+1; col ++)
-        {
-             for (int row = 1; row<nv+1; row++)
-             {
-               A[col][row].R = Ycomp[col][row].real();
-               A[col][row].I = Ycomp[col][row].imag();
-             }
-             B[col].R = Ycomp[col][nv+1].real();
-             B[col].I = Ycomp[col][nv+1].imag();
-        }
+//        double eps=1e-350; double dta=1e-350; int M=1; int it;
+//
+//        for (int col =1; col <nv+1; col ++)
+//        {
+//             for (int row = 1; row<nv+1; row++)
+//             {
+//               A[col][row].R = Ycomp[col][row].real();
+//               A[col][row].I = Ycomp[col][row].imag();
+//             }
+//             B[col].R = Ycomp[col][nv+1].real();
+//             B[col].I = Ycomp[col][nv+1].imag();
+//        }
 //
 //        for (int col =1; col <nv+1; col ++)
 //        {
@@ -641,7 +642,7 @@ int main(void)
 //             cout << B[col].R <<endl;
 //        }
 
-        RSLCGTC(eps,dta,M,nv,A,B,&it,X);
+//        RSLCGTC(eps,dta,M,nv,A,B,&it,X);
 //
 //  printf("it: %d", it);
 //     printf("\n System solutions:\n");
@@ -654,21 +655,24 @@ int main(void)
   //getch();
 
         //if (resolverSistemaAC()) exit(-1);
-        /* Mostra solucao */
+//         Mostra solucao
+//        printf("Solucao:\n");
+//        strcpy(txt,"Tensao");
+//        for (int col =0; col <nv+1; col++)
+//        {
+//          Ycomp[col][nv+1] = X[col].R + X[col].I * J;
+//        }
+
+
+        resolverSistemaAC();
+        //Mostra solucao
         printf("Solucao:\n");
         strcpy(txt,"Tensao");
-        for (int col =0; col <nv+1; col++)
-        {
-          Ycomp[col][nv+1] = X[col].R + X[col].I * J;
-        }
-
 
         for (i=1; i<=nv; i++) {
           if (i==nn+1) strcpy(txt,"Corrente");
           printf("MODULO %s %s: %g\n",txt,lista[i], abs(Ycomp[i][nv+1]));
-          //printf("FASE %s %s: %g\n",txt,lista[i],( (180.0/ PI) * arg(Ycomp[i][nv+1]) ) );
           printf("FASE %s %s: %g\n",txt,lista[i],( (180.0/ PI) *  arg(Ycomp[i][nv+1] ) ) );
-          vProximo[i] = Yn[i] [nv+1];
         }
         nPtos++;
         printf("\nFrequencia: %f\n", freq);
@@ -681,8 +685,8 @@ int main(void)
   return 0;
 }
 
-/* Resolucao de sistema de equacoes lineares.
-   Metodo de Gauss-Jordan com condensacao pivotal */
+///* Resolucao de sistema de equacoes lineares.
+//   Metodo de Gauss-Jordan com condensacao pivotal */
 int resolversistema(void)
 {
   double t, p;
@@ -721,80 +725,41 @@ int resolversistema(void)
   }
   return 0;
 }
-////copia Kris
-//int resolverSistemaAC(void)
-//{
-//  int i,j,l, a;
-//  complex<double> t, p;
-//
-//  for (i=1; i<=nv; i++) {
-//    t=0.0;
-//    a=i;
-//    for (l=i; l<=nv; l++) {
-//      if (abs(Ycomp[l][i])>abs(t)) {
-//	a=l;
-//	t=Ycomp[l][i];
-//      }
-//    }
-//    if (i!=a) {
-//      for (l=1; l<=nv+1; l++) {
-//	p=Ycomp[i][l];
-//	Ycomp[i][l]=Ycomp[a][l];
-//	Ycomp[a][l]=p;
-//      }
-//    }
-//    if (abs(t)<TOLG) {
-//      printf("Sistema singular\n");
-//      return 1;
-//
-//    }
-//    for (j=nv+1; j>0; j--) {  /* Basta j>i em vez de j>0 */
-//      Ycomp[i][j]/= t;
-//      p=Ycomp[i][j];
-//      if (abs(p)!=0)  /* Evita operacoes com zero */
-//        for (l=1; l<=nv; l++) {
-//	  if (l!=i)
-//	    Ycomp[l][j]-=Ycomp[l][i]*p;
-//        }
-//    }
-//  }
-//  return 0;
-//}
 
 int resolverSistemaAC(void)
 {
- // int i,j,l, a;
+  int i,j,l, a;
   complex<double> t, p;
-  t = 0.0 + J * 0.0;
+  p = t;
 
-  int l;
-  for (int i=1; i<=nv; i++) {
-    int a=i;
+  for (i=1; i<=nv; i++) {
+    t = 0.0 + J * 0.0;
+    a=i;
     for (l=i; l<=nv; l++) {
       if (abs(Ycomp[l][i])>abs(t)) {
-     a=l;
-	t=Ycomp[l][i];
+          a=l;
+          t=Ycomp[l][i];
       }
     }
     if (i!=a) {
       for (l=1; l<=nv+1; l++) {
-	p=Ycomp[i][l];
-	Ycomp[i][l]=Ycomp[a][l];
-	Ycomp[a][l]=p;
+          p=Ycomp[i][l];
+          Ycomp[i][l]=Ycomp[a][l];
+          Ycomp[a][l]=p;
       }
     }
     if (abs(t)<TOLG) {
       printf("Sistema singular\n");
-      printf ("%lf\n", (abs(t) - TOLG)*1000000000);
+      //printf ("%lf\n", (abs(t) - TOLG)*1000000000);
       return 1;
     }
     for (j=nv+1; j>0; j--) {  /* Basta j>i em vez de j>0 */
       Ycomp[i][j]/= t;
       p=Ycomp[i][j];
-      if (abs(p)!=0)  /* Evita operacoes com zero */
+      if (abs(p)!=0.0)  /* Evita operacoes com zero */
         for (l=1; l<=nv; l++) {
-	  if (l!=i)
-	    Ycomp[l][j]-=Ycomp[l][i]*p;
+          if (l!=i)
+               Ycomp[l][j]-=Ycomp[l][i]*p;
         }
     }
   }
@@ -924,7 +889,7 @@ void montaEstampaDC()
   printf("O circuito tem %d nos, %d variaveis e %d elementos\n",nn,nv,ne);
   //getch();
   /* Zera sistema */
-  for (int i=0; i<=nv; i++) {
+  for (int i=0; i<=nv+1; i++) {
     //inicializa os vetores utilizdos na analise de convergencia
     for (int j=0; j<=nv+1; j++)
     {
@@ -993,21 +958,22 @@ void montaEstampaDC()
       Yn[netlist[i].y][netlist[i].x]+=g;
     }
     else if (tipo=='C'){
+      g = FATORDC;
       Yn[netlist[i].a][netlist[i].a]+=g;
       Yn[netlist[i].b][netlist[i].b]+=g;
       Yn[netlist[i].a][netlist[i].b]-=g;
       Yn[netlist[i].b][netlist[i].a]-=g;
-
     }
 
     //se for indutor, a condutancia em DC tende a infinito
     else if (tipo=='L')
     {
+       g = FATORDC;
        Yn[netlist[i].a][netlist[i].x]+=1;
        Yn[netlist[i].b][netlist[i].x]-=1;
        Yn[netlist[i].x][netlist[i].a]-=1;
        Yn[netlist[i].x][netlist[i].b]+=1;
-       Yn[netlist[i].x][netlist[i].x]+=0;
+       Yn[netlist[i].x][netlist[i].x]+= g;
     }
 
    else if (tipo=='M')
@@ -1133,6 +1099,11 @@ void montaEstampaDC()
       Yn[netlist[i].x][netlist[i].c]+=1;
       Yn[netlist[i].x][netlist[i].d]-=1;
     }
+    else
+    {
+         cout << "Deu ruim: " << endl;
+         getch();
+    }
   }
 }
 
@@ -1142,11 +1113,11 @@ void montaEstampaAC(double frequencia)
   //printf("O circuito tem %d nos, %d variaveis e %d elementos\n",nn,nv,ne);
   //getch();
   /* Zera sistema */
-  for (int i=0; i<=nv; i++) {
+  for (int i=0; i<=nv+1; i++) {
     //inicializa os vetores utilizdos na analise de convergencia
     for (int j=0; j<=nv+1; j++)
     {
-      Ycomp[i][j]=0;
+      Ycomp[i][j]= 0.0 + 0.0*J;
     }
   }
   /* Monta estampas */
@@ -1168,9 +1139,10 @@ void montaEstampaAC(double frequencia)
       Ycomp[netlist[i].b][netlist[i].c]-=g;
     }
     else if (tipo=='I') {
-      double real = netlist[i].modulo * cosd(netlist[i].fase);
-      double imag = netlist[i].modulo * sind(netlist[i].fase);
-      complex <double> gComp = real + J*imag;
+//      double real = netlist[i].modulo * cosd(netlist[i].fase);
+//      double imag = netlist[i].modulo * sind(netlist[i].fase);
+//      complex <double> gComp = real + J*imag;
+      complex<double> gComp = netlist[i].modulo * cosd(netlist[i].fase) + J * netlist[i].modulo * sind(netlist[i].fase);
       Ycomp[netlist[i].a][nv+1]-=gComp;
       Ycomp[netlist[i].b][nv+1]+=gComp;
     }
@@ -1217,9 +1189,9 @@ void montaEstampaAC(double frequencia)
       Ycomp[netlist[i].x][netlist[i].d]+=1;
       Ycomp[netlist[i].y][netlist[i].x]+=g;
     }
-    else if (tipo=='C'){
-      complex <double> gComp = J * (2.0 * PI *netlist[i].valor * frequencia) ;
-
+    else if (tipo=='C')
+    {
+      complex <double> gComp = 0.0 + J * (2.0 * (double)PI *netlist[i].valor * frequencia) ;
       Ycomp[netlist[i].a][netlist[i].a]+=gComp;
       Ycomp[netlist[i].b][netlist[i].b]+=gComp;
       Ycomp[netlist[i].a][netlist[i].b]-=gComp;
@@ -1231,7 +1203,8 @@ void montaEstampaAC(double frequencia)
     else if (tipo=='L')
     {
          //complex <double> gComp = J * ((2.0 * PI *netlist[i].valor) * frequencia) ;
-       complex <double> gComp = 0.0 + J * ((2.0 * PI *netlist[i].valor) * frequencia) ;
+       complex <double> gComp = 0.0 + J * ((2.0 * (double)PI *netlist[i].valor) * frequencia) ;
+       cout << "valor indutor: " << netlist[i].valor << endl;
        Ycomp[netlist[i].a][netlist[i].x]+=1.0 + 0.0*J;
        Ycomp[netlist[i].b][netlist[i].x]-=1.0 + 0.0*J;
        Ycomp[netlist[i].x][netlist[i].a]-=1.0+ 0.0*J;
