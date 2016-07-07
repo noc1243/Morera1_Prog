@@ -53,11 +53,23 @@ Os nos podem ser nomes
                 //mesmo que esta nao esteja convergindo
 
 #define J dcomplex(0.0,1.0)
-#define UM 0.99990
-#define ZERO 0.00001
+#define UM 0.9999999999990
+#define ZERO 0.0000000000001
 typedef std::complex<double> dcomplex;
 #define PI  (4*atan(1))
 #define MAX_ERRO 1e-9
+#define  NMAX  50
+
+typedef struct {
+     double R,I;  //algebraic form
+  } COMPLEX;
+
+typedef COMPLEX Matc[NMAX][NMAX];
+  typedef COMPLEX Vecc[NMAX];
+  typedef int Veci[NMAX];
+ Matc A; Vecc B, X;
+
+
 
 using namespace std;
 
@@ -133,6 +145,229 @@ void montaEstampaAC(double frequencia);
 inline double sind (double angulo);
 inline double cosd (double angulo);
 
+
+double CABS(COMPLEX Z) {
+    return sqrt(Z.R*Z.R + Z.I*Z.I);
+  }
+
+  void CADD(COMPLEX Z1, COMPLEX Z2, COMPLEX *Z) {
+    Z->R = Z1.R + Z2.R;
+    Z->I = Z1.I + Z2.I;
+  }
+
+  void CDIF(COMPLEX Z1, COMPLEX Z2, COMPLEX *Z) {
+    Z->R = Z1.R - Z2.R;
+    Z->I = Z1.I - Z2.I;
+  }
+
+  void CMUL(COMPLEX Z1, COMPLEX Z2, COMPLEX *Z) {
+    Z->R = Z1.R*Z2.R - Z1.I*Z2.I;
+    Z->I = Z1.R*Z2.I + Z1.I*Z2.R;
+  }
+
+  void CDIV(COMPLEX Z1, COMPLEX Z2, COMPLEX *Z) {
+    double d; COMPLEX C;
+    d = Z2.R*Z2.R+Z2.I*Z2.I;
+    if (d>2.2e-16) {
+      C.R=Z2.R; C.I=-Z2.I;
+      CMUL(Z1,C,Z);
+      Z->R=Z->R/d; Z->I=Z->I/d;
+    }
+  }
+
+  void CSwap(COMPLEX *Z1, COMPLEX *Z2) {
+    COMPLEX  C;
+    C.R=Z1->R; C.I=Z1->I;
+    Z1->R=Z2->R; Z1->I=Z2->I;
+    Z2->R=C.R; Z2->I=C.I;
+  }
+
+
+  /****************************************************************
+  * TSCGT procedure implements the triangularization algorithm of *
+  * Gauss with full pivoting at each step for a complex matrix, A *
+  * and saves the made transformations in KP and LP.              *
+  * ------------------------------------------------------------- *
+  * INPUTS:                                                       *
+  *          N:   size of complex matrix A                        *
+  *          A:   complex matrix of size N x N                    *
+  * OUTPUTS;                                                      *
+  *          it:  =0 if A is singular, else =1.                   *
+  *           C:  contains the upper triangular matrix and the    *
+  *               multipliers used during the process.            *
+  *          KP:  contains the column exchanges.                  *
+  *          LP:  contains the line exchanges.                    *
+  ****************************************************************/
+  void TSCGT(double eps, int N, Matc A, int *it, Matc C, Veci KP, Veci LP) {
+  int i,j,k,k0,l0;
+  COMPLEX C0,C1,P0,T0;
+
+    for (i=1; i<=N; i++)
+	  for(j=1; j<=N; j++) {
+        C[i][j].R=A[i][j].R;
+        C[i][j].I=A[i][j].I;
+      }
+
+    *it=1; k=1;
+    while (*it==1 && k<N) {
+      P0.R=C[k][k].R; P0.I=C[k][k].I;
+      l0=k; k0=k;
+      for (i=k; i<=N; i++)
+        for (j=1; j<=N; j++)
+		  if (CABS(C[i][j]) > CABS(P0)) {
+            P0.R=C[i][j].R; P0.I=C[i][j].I;
+            l0=i; k0=j;
+          }
+      LP[k]=l0; KP[k]=k0;
+      if (CABS(P0) < eps)
+        *it=0;
+      else {
+        if (l0!=k)
+		  for (j=k; j<=N; j++) {
+            T0.R=C[k][j].R; T0.I=C[k][j].I;
+            C[k][j].R=C[l0][j].R;
+            C[k][j].I=C[l0][j].I;
+            C[l0][j].R=T0.R;
+            C[l0][j].I=T0.I;
+          }
+        if (k0!=k)
+		  for (i=1; i<=N; i++) {
+            T0.R=C[i][k].R; T0.I=C[i][k].I;
+            C[i][k].R=C[i][k0].R;
+            C[i][k].I=C[i][k0].I;
+            C[i][k0].R=T0.R;
+            C[i][k0].I=T0.I;
+          }
+		for (i=k+1; i<=N; i++) {
+          C0.R=C[i][k].R; C0.I=C[i][k].I;
+		  CDIV(C0,P0,&C[i][k]);
+          for (j=k+1; j<=N; j++) {
+            C0.R=C[i][j].R; C0.I=C[i][j].I;
+            CMUL(C[i][k],C[k][j],&C1);
+            CDIF(C0,C1,&C[i][j]);
+          }
+        }
+        k++;
+      }
+    }
+    if (*it==1 && CABS(C[N][N]) < eps)  *it=0;
+  } //TSCGT()
+
+  /*************************************************************
+  * Function BSCGT calculates the solution of upper triangular *
+  * system [S(n-1)] by the back substitution method and deduces*
+  * from it the solution of system [S]. The call must be made  *
+  * only after a call to TSCGT and the matrix of [S] must be   *
+  * regular.                                                   *
+  * ---------------------------------------------------------- *
+  * INPUTS:                                                    *
+  *         N : size of matrix C                               *
+  *         C:  contains the upper triangular matrix and the   *
+  *             multipliers used during the triangularization  *
+  *             process (in output of TSCGT).     .            *
+  *         W : contains the right-side coefficients           *
+  *             (modified in the process).                     *
+  *         KP: contains the column exchanges.                 *
+  *         LP: contains the line exchanges.                   *
+  * OUTPUT:                                                    *
+  *         Z : system solution complex vector.                *
+  *************************************************************/
+  void BSCGT(int N, Matc C, Vecc W, Veci KP, Veci LP, Vecc Z) {
+    int i,j,k,k0,l0;
+    COMPLEX C0,C1,S,Z0;
+
+    Z0.R=0.0; Z0.I=0.0;
+    for (k=1; k<N; k++) {
+      l0=LP[k];
+      if (l0!=k)  CSwap(&W[k],&W[l0]);
+      for (i=k+1; i<=N; i++) {
+        C0.R=W[i].R; C0.I=W[i].I;
+        CMUL(C[i][k],W[k],&C1); CDIF(C0,C1,&W[i]);
+      }
+    }
+    CDIV(W[N],C[N][N],&Z[N]);
+    for (i=N-1; i>0; i--) {
+      S.R=Z0.R; S.I=Z0.I;
+      for (j=i+1; j<=N; j++) {
+        C0.R=S.R; C0.I=S.I;
+        CMUL(C[i][j],Z[j],&C1); CADD(C0,C1,&S);
+      }
+      CDIF(W[i],S,&C0);
+      CDIV(C0,C[i][i],&Z[i]);
+    }
+    for (k=N-1; k>0; k--) {
+      k0=KP[k];
+      if (k0!=k)  CSwap(&Z[k],&Z[k0]);
+    }
+  } // BSCGT()
+
+
+  /************************************************************
+  * Solve a Complex Linear System AX = B By Gauss Method with *
+  * full pivoting and a correction process.                   *
+  * --------------------------------------------------------- *
+  * INPUTS:                                                   *
+  *         eps, dta : absolute and relative precisions       *
+  *         M : maximum number of iterations                  *
+  *         N : size of linear system                         *
+  *         A : complex matrix                                *
+  *         B : right-hand side (complex vector)              *
+  * OUTPUTS:                                                  *
+  *         it: flag, =-1 if no convergence, =0 if matrix A   *
+  *             is singular, =1 convergence ok.               *
+  *         X : contains system solution (X1,X2,...,Xn)       *
+  *                                                           *
+  ************************************************************/
+  void RSLCGTC(double eps, double dta, int M, int N, Matc A, Vecc B,
+	           int *it, Vecc X)  {
+    int I,Jota,L;
+    double phi1,phi2;
+    COMPLEX C0,C1,S,Z0;
+    Matc C; Vecc B1, W, Z;
+	Veci KP, LP;
+
+    Z0.R=0.0; Z0.I=0.0;
+
+    TSCGT(eps,N,A,it,C,KP,LP);
+
+	if (*it==1) {
+
+// Save B in B1 before BSCGT
+      for (Jota=1; Jota<=N; Jota++) B1[Jota] = B[Jota];
+
+      BSCGT(N,C,B,KP,LP, X);
+
+// Restore B after BSCGT
+      for (Jota=1; Jota<=N; Jota++) B[Jota] = B1[Jota];
+
+      *it=-1; L=1;
+      while (*it==-1 && L<=M) {
+        phi1=0.0;
+        for (I=1; I<=N; I++)
+          if (CABS(X[I]) > phi1)  phi1=CABS(X[I]);
+		for (I=1; I<=N; I++) {
+          S.R=Z0.R; S.I=Z0.I;
+          for (Jota=1; Jota<=N; Jota++) {
+            C0.R=S.R; C0.I=S.I;
+            CMUL(A[I][Jota],X[Jota], &C1);
+            CADD(C0,C1, &S);
+          }
+          CDIF(B[I],S, &W[I]);
+        }
+
+        BSCGT(N,C,W,KP,LP,Z);
+
+        for (I=1; I<=N; I++) {
+          C0.R=X[I].R; C0.I=X[I].I;
+          CADD(C0,Z[I], &X[I]);
+        }
+        phi2=0.0;
+        for (I=1; I<=N; I++)
+          if (CABS(Z[I]) > phi2)  phi2=CABS(Z[I]);
+        if (phi2/phi1 < dta) *it=1; else L++;
+	  } // while
+	} // if *it==1
+  } // RSLCGTC()
 
 int main(void)
 {
@@ -380,19 +615,63 @@ int main(void)
       {
         printf("\nFrequencia: %f\n", freq);
         montaEstampaAC(freq);
-        if (resolverSistemaAC()) exit(-1);
+//     for (i=1; i<=nv; i++) {
+//     for (j=1; j<=nv+1; j++)
+//        if (abs(Ycomp[i][j])!=0) cout << Ycomp[i][j];//printf("%+3.1f ",Yn[i][j]);
+//     else printf(" ......... ");
+//          printf("\n");
+//     }
+        double eps=1e-350; double dta=1e-350; int M=1; int it;
+
+        for (int col =1; col <nv+1; col ++)
+        {
+             for (int row = 1; row<nv+1; row++)
+             {
+               A[col][row].R = Ycomp[col][row].real();
+               A[col][row].I = Ycomp[col][row].imag();
+             }
+             B[col].R = Ycomp[col][nv+1].real();
+             B[col].I = Ycomp[col][nv+1].imag();
+        }
+//
+//        for (int col =1; col <nv+1; col ++)
+//        {
+//             for (int row = 1; row<nv+1; row++)
+//               cout << A[col][row].R << " ";
+//             cout << B[col].R <<endl;
+//        }
+
+        RSLCGTC(eps,dta,M,nv,A,B,&it,X);
+//
+//  printf("it: %d", it);
+//     printf("\n System solutions:\n");
+//  for (int I=1; I<=nv; I++) {
+//    printf("  X%d = %f", I, X[I].R);
+//    if (X[I].I >= 0.0) printf(" + ");
+//    else printf(" - ");
+//    printf("%f I\n", fabs(X[I].I));
+//  }
+  //getch();
+
+        //if (resolverSistemaAC()) exit(-1);
         /* Mostra solucao */
         printf("Solucao:\n");
         strcpy(txt,"Tensao");
+        for (int col =0; col <nv+1; col++)
+        {
+          Ycomp[col][nv+1] = X[col].R + X[col].I * J;
+        }
+
+
         for (i=1; i<=nv; i++) {
           if (i==nn+1) strcpy(txt,"Corrente");
           printf("MODULO %s %s: %g\n",txt,lista[i], abs(Ycomp[i][nv+1]));
           //printf("FASE %s %s: %g\n",txt,lista[i],( (180.0/ PI) * arg(Ycomp[i][nv+1]) ) );
-          printf("FASE %s %s: %g\n",txt,lista[i],( (180.0/ PI) * atan(Ycomp[i][nv+1].imag()/Ycomp[i][nv+1].real() ) ) );
-          printf("arg: %f\n", (180.0/ PI) * arg(Ycomp[i][nv+1]) );
+          printf("FASE %s %s: %g\n",txt,lista[i],( (180.0/ PI) *  arg(Ycomp[i][nv+1] ) ) );
           vProximo[i] = Yn[i] [nv+1];
         }
         nPtos++;
+        printf("\nFrequencia: %f\n", freq);
         getch();
       }
       printf("Foram plotados %d pontos\n", nPtos);
@@ -442,6 +721,45 @@ int resolversistema(void)
   }
   return 0;
 }
+////copia Kris
+//int resolverSistemaAC(void)
+//{
+//  int i,j,l, a;
+//  complex<double> t, p;
+//
+//  for (i=1; i<=nv; i++) {
+//    t=0.0;
+//    a=i;
+//    for (l=i; l<=nv; l++) {
+//      if (abs(Ycomp[l][i])>abs(t)) {
+//	a=l;
+//	t=Ycomp[l][i];
+//      }
+//    }
+//    if (i!=a) {
+//      for (l=1; l<=nv+1; l++) {
+//	p=Ycomp[i][l];
+//	Ycomp[i][l]=Ycomp[a][l];
+//	Ycomp[a][l]=p;
+//      }
+//    }
+//    if (abs(t)<TOLG) {
+//      printf("Sistema singular\n");
+//      return 1;
+//
+//    }
+//    for (j=nv+1; j>0; j--) {  /* Basta j>i em vez de j>0 */
+//      Ycomp[i][j]/= t;
+//      p=Ycomp[i][j];
+//      if (abs(p)!=0)  /* Evita operacoes com zero */
+//        for (l=1; l<=nv; l++) {
+//	  if (l!=i)
+//	    Ycomp[l][j]-=Ycomp[l][i]*p;
+//        }
+//    }
+//  }
+//  return 0;
+//}
 
 int resolverSistemaAC(void)
 {
@@ -693,121 +1011,122 @@ void montaEstampaDC()
     }
 
    else if (tipo=='M')
-   {
-        g = FATORDC;
-        gm = 0;
-        gds = 0;
-        io = 0;
+     {
+          g =  FATORDC;
+          gm = 0;
+          gds = 0;
+          io = 0;
 
-        double vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
+          double vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
 
-        if ((vds < 0 && netlist[i].pnmos == nmos) || (vds > 0 && netlist[i].pnmos == pmos))
-        {
-            int aux  = netlist[i].td;
-            netlist[i].td = netlist[i].ts;
-            netlist[i].ts = aux;
-        }
+          if ((vds < 0 && netlist[i].pnmos == nmos) || (vds > 0 && netlist[i].pnmos == pmos))
+          {
+           	  int aux  = netlist[i].td;
+           	  netlist[i].td = netlist[i].ts;
+           	  netlist[i].ts = aux;
+          }
 
-    #ifdef DEBUG
-            printf ("vd %f vs %f vb %f vg %f\n", vAtual[netlist[i].td],vAtual[netlist[i].ts], vAtual[netlist[i].tb], vAtual[netlist[i].tg]);
-    #endif
+		  #ifdef DEBUG
+          	  printf ("vd %f vs %f vb %f vg %f\n", vAtual[netlist[i].td],vAtual[netlist[i].ts], vAtual[netlist[i].tb], vAtual[netlist[i].tg]);
+		  #endif
 
-        double vgs = vAtual[netlist[i].tg]-vAtual[netlist[i].ts];
-        vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
-        double vbs = vAtual[netlist[i].tb]-vAtual[netlist[i].ts];
+          double vgs = vAtual[netlist[i].tg]-vAtual[netlist[i].ts];
+          vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
+          double vbs = vAtual[netlist[i].tb]-vAtual[netlist[i].ts];
 
-        vgs *= (netlist[i].pnmos==nmos?1:-1);
-        vds *= (netlist[i].pnmos==nmos?1:-1);
-        vbs = (fabs(vbs)>netlist[i].phi/2.0?netlist[i].phi/2.0:vbs);
+          vgs *= (netlist[i].pnmos==nmos?1:-1);
+          vds *= (netlist[i].pnmos==nmos?1:-1);
 
-        double vt = netlist[i].vt + netlist[i].gama * (sqrt((netlist[i].phi - fabs(vbs))) - sqrt((netlist[i].phi)));
+          vbs = (fabs(vbs)>netlist[i].phi/2.0?netlist[i].phi/2.0:vbs);
 
-        vbs *= (netlist[i].pnmos==nmos?1:-1);
+          double vt = netlist[i].vt + netlist[i].gama * (sqrt((netlist[i].phi - fabs(vbs))) - sqrt((netlist[i].phi)));
 
-        #ifdef DEBUG
-            printf ("vt: %f  vgs: %f vds: %f vs: %f ts %d\n", vt,vgs,vds, vAtual[netlist[i].ts], netlist[i].ts);
-    #endif
+          vbs *= (netlist[i].pnmos==nmos?1:-1);
 
-
-        if (vgs < vt)
-        {
-          netlist[i].transistorOp = corte;
-       #ifdef DEBUG
-          printf ("corte\n");
-       #endif
-        }
-        else if (vds < vgs - vt)
-        {
-          netlist[i].transistorOp = ohmica;
-       #ifdef DEBUG
-           printf ("ohmica\n");
-       #endif
-        }
-        else
-        {
-          netlist[i].transistorOp = saturacao;
-      #ifdef DEBUG
-                printf ("saturacao\n");
-      #endif
-        }
-
-        if (netlist[i].transistorOp == saturacao)
-        {
-           gm = netlist[i].k * (netlist[i].w/netlist[i].l)* (2.0*(vgs - vt)) * (1 + netlist[i].lambda* vds);
-           gds = netlist[i].k * (netlist[i].w/netlist[i].l)* pow ((vgs - vt),2.0) * netlist[i].lambda;
-           io = netlist[i].k * (netlist[i].w/netlist[i].l) * pow((vgs - vt),2.0) * (1 + netlist[i].lambda * vds) - (gm * vgs) - (gds * vds);
-        }
-        else if (netlist[i].transistorOp == ohmica)
-        {
-           gm = netlist[i].k * (netlist[i].w/netlist[i].l)*(2.0* vds)*(1+ netlist[i].lambda* vds);
-           gds = netlist[i].k * (netlist[i].w/netlist[i].l) * (2.0*(vgs - vt) - 2 * vds + 4.0* netlist[i].lambda * (vgs - vt) * vds - 3.0*netlist[i].lambda * pow (vds,2.0));
-           io = netlist[i].k * (netlist[i].w/netlist[i].l) * (2.0* (vgs - vt)*vds - pow (vds,2.0)) - (gm * vgs) - (gds * vds);
-        }
-
-        gmb = (gm*netlist[i].gama)/(2*sqrt(fabs(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))));
-
-        io-= (gmb * vbs);
-        io*=(netlist[i].pnmos == pmos?-1:1);
-
-     #ifdef DEBUG
-        printf ("gm %e gmb %e  gds %e io %e \n\n", gm, gds, gmb, io);
-    #endif
-
-        Yn[netlist[i].td][netlist[i].tb]+=gmb;
-        Yn[netlist[i].ts][netlist[i].ts]+=gmb;
-        Yn[netlist[i].td][netlist[i].ts]-=gmb;
-        Yn[netlist[i].ts][netlist[i].tb]-=gmb;
-
-        Yn[netlist[i].td][netlist[i].tg]+=gm;
-        Yn[netlist[i].ts][netlist[i].ts]+=gm;
-        Yn[netlist[i].td][netlist[i].ts]-=gm;
-        Yn[netlist[i].ts][netlist[i].tg]-=gm;
-
-        Yn[netlist[i].td][netlist[i].td]+=gds;
-        Yn[netlist[i].ts][netlist[i].ts]+=gds;
-        Yn[netlist[i].td][netlist[i].ts]-=gds;
-        Yn[netlist[i].ts][netlist[i].td]-=gds;
+          #ifdef DEBUG
+          	  printf ("vt: %f  vgs: %f vds: %f vs: %f ts %d\n", vt,vgs,vds, vAtual[netlist[i].ts], netlist[i].ts);
+		  #endif
 
 
-        Yn[netlist[i].td][netlist[i].td]+=g;
-        Yn[netlist[i].tg][netlist[i].tg]+=g;
-        Yn[netlist[i].td][netlist[i].tg]-=g;
-        Yn[netlist[i].tg][netlist[i].td]-=g;
+          if (vgs < vt)
+          {
+               netlist[i].transistorOp = corte;
+			   #ifdef DEBUG
+               	   printf ("corte\n");
+			   #endif
+          }
+          else if (vds < vgs - vt)
+          {
+        	   netlist[i].transistorOp = ohmica;
+			   #ifdef DEBUG
+               	   printf ("ohmica\n");
+			   #endif
+          }
+          else
+          {
+        	  netlist[i].transistorOp = saturacao;
+			  #ifdef DEBUG
+              	  printf ("saturacao\n");
+			  #endif
+          }
 
-        Yn[netlist[i].ts][netlist[i].ts]+=g;
-        Yn[netlist[i].tg][netlist[i].tg]+=g;
-        Yn[netlist[i].ts][netlist[i].tg]-=g;
-        Yn[netlist[i].tg][netlist[i].ts]-=g;
+          if (netlist[i].transistorOp == saturacao)
+          {
+               gm = netlist[i].k * (netlist[i].w/netlist[i].l)* (2.0*(vgs - vt)) * (1 + netlist[i].lambda* vds);
+               gds = netlist[i].k * (netlist[i].w/netlist[i].l)* pow ((vgs - vt),2.0) * netlist[i].lambda;
+               io = netlist[i].k * (netlist[i].w/netlist[i].l) * pow((vgs - vt),2.0) * (1 + netlist[i].lambda * vds) - (gm * vgs) - (gds * vds);
+          }
+          else if (netlist[i].transistorOp == ohmica)
+          {
+               gm = netlist[i].k * (netlist[i].w/netlist[i].l)*(2.0* vds)*(1+ netlist[i].lambda* vds);
+               gds = netlist[i].k * (netlist[i].w/netlist[i].l) * (2.0*(vgs - vt) - 2 * vds + 4.0* netlist[i].lambda * (vgs - vt) * vds - 3.0*netlist[i].lambda * pow (vds,2.0));
+               io = netlist[i].k * (netlist[i].w/netlist[i].l) * (2.0* (vgs - vt)*vds - pow (vds,2.0)) - (gm * vgs) - (gds * vds);
+          }
 
-        Yn[netlist[i].tb][netlist[i].tb]+=g;
-        Yn[netlist[i].tg][netlist[i].tg]+=g;
-        Yn[netlist[i].tb][netlist[i].tg]-=g;
-        Yn[netlist[i].tg][netlist[i].tb]-=g;
+          double gmb = (gm*netlist[i].gama)/(2*sqrt(fabs(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))));
 
-        Yn[netlist[i].td][nv+1]-=io;
-        Yn[netlist[i].ts][nv+1]+=io;
+          io-= (gmb * vbs);
+          io*=(netlist[i].pnmos == pmos?-1:1);
 
-    }
+	   	 #ifdef DEBUG
+		 	   printf ("gm %e gmb %e  gds %e io %e \n\n", gm, gmb, gds, io);
+		 #endif
+
+          Yn[netlist[i].td][netlist[i].tb]+=gmb;
+          Yn[netlist[i].ts][netlist[i].ts]+=gmb;
+          Yn[netlist[i].td][netlist[i].ts]-=gmb;
+          Yn[netlist[i].ts][netlist[i].tb]-=gmb;
+
+          Yn[netlist[i].td][netlist[i].tg]+=gm;
+          Yn[netlist[i].ts][netlist[i].ts]+=gm;
+          Yn[netlist[i].td][netlist[i].ts]-=gm;
+          Yn[netlist[i].ts][netlist[i].tg]-=gm;
+
+          Yn[netlist[i].td][netlist[i].td]+=gds;
+          Yn[netlist[i].ts][netlist[i].ts]+=gds;
+          Yn[netlist[i].td][netlist[i].ts]-=gds;
+          Yn[netlist[i].ts][netlist[i].td]-=gds;
+
+
+         Yn[netlist[i].td][netlist[i].td]+=g;
+         Yn[netlist[i].tg][netlist[i].tg]+=g;
+         Yn[netlist[i].td][netlist[i].tg]-=g;
+         Yn[netlist[i].tg][netlist[i].td]-=g;
+
+         Yn[netlist[i].ts][netlist[i].ts]+=g;
+         Yn[netlist[i].tg][netlist[i].tg]+=g;
+         Yn[netlist[i].ts][netlist[i].tg]-=g;
+         Yn[netlist[i].tg][netlist[i].ts]-=g;
+
+         Yn[netlist[i].tb][netlist[i].tb]+=g;
+         Yn[netlist[i].tg][netlist[i].tg]+=g;
+         Yn[netlist[i].tb][netlist[i].tg]-=g;
+         Yn[netlist[i].tg][netlist[i].tb]-=g;
+
+          Yn[netlist[i].td][nv+1]-=io;
+          Yn[netlist[i].ts][nv+1]+=io;
+
+     }
     else if (tipo=='O') {
       Yn[netlist[i].a][netlist[i].x]+=1;
       Yn[netlist[i].b][netlist[i].x]-=1;
@@ -856,10 +1175,11 @@ void montaEstampaAC(double frequencia)
       Ycomp[netlist[i].b][nv+1]+=gComp;
     }
     else if (tipo=='V') {
-      double real = netlist[i].modulo * cosd(netlist[i].fase);
-      double imag = netlist[i].modulo * sind(netlist[i].fase);
-      complex <double> gComp = real + J*imag;
-      cout << "gComp:" <<  gComp << endl;
+//      double real = netlist[i].modulo * cosd(netlist[i].fase);
+//      double imag = netlist[i].modulo * sind(netlist[i].fase);
+//      complex <double> gComp = real + J*imag;
+      complex<double> gComp = netlist[i].modulo * cosd(netlist[i].fase) + J * netlist[i].modulo * sind(netlist[i].fase);
+//      cout << "gComp:" <<  gComp << endl;
 
       Ycomp[netlist[i].a][netlist[i].x]+=1;
       Ycomp[netlist[i].b][netlist[i].x]-=1;
@@ -910,129 +1230,35 @@ void montaEstampaAC(double frequencia)
     //se for indutor, a condutancia em DC tende a infinito
     else if (tipo=='L')
     {
-       complex <double> gComp = J * ((1.0/  2.0 * PI *netlist[i].valor) * frequencia) ;
-       Ycomp[netlist[i].a][netlist[i].x]+=1;
-       Ycomp[netlist[i].b][netlist[i].x]-=1;
-       Ycomp[netlist[i].x][netlist[i].a]-=1;
-       Ycomp[netlist[i].x][netlist[i].b]+=1;
+         //complex <double> gComp = J * ((2.0 * PI *netlist[i].valor) * frequencia) ;
+       complex <double> gComp = 0.0 + J * ((2.0 * PI *netlist[i].valor) * frequencia) ;
+       Ycomp[netlist[i].a][netlist[i].x]+=1.0 + 0.0*J;
+       Ycomp[netlist[i].b][netlist[i].x]-=1.0 + 0.0*J;
+       Ycomp[netlist[i].x][netlist[i].a]-=1.0+ 0.0*J;
+       Ycomp[netlist[i].x][netlist[i].b]+=1.0 + 0.0*J;
        Ycomp[netlist[i].x][netlist[i].x]+=gComp;
     }
 
    else if (tipo=='M')
    {
-        g = FATORDC;
-        gm = 0;
-        gds = 0;
-        io = 0;
+        complex <double> gCgs = 2 * PI * netlist[i].cgs * J;
+        complex <double> gCgd = 2 * PI * netlist[i].cgd * J;
+        complex <double> gCgb = 2 * PI * netlist[i].cgb * J;
 
-        double vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
+         Ycomp[netlist[i].td][netlist[i].td]+=gCgd;
+         Ycomp[netlist[i].tg][netlist[i].tg]+=gCgd;
+         Ycomp[netlist[i].td][netlist[i].tg]-=gCgd;
+         Ycomp[netlist[i].tg][netlist[i].td]-=gCgd;
 
-        if ((vds < 0 && netlist[i].pnmos == nmos) || (vds > 0 && netlist[i].pnmos == pmos))
-        {
-            int aux  = netlist[i].td;
-            netlist[i].td = netlist[i].ts;
-            netlist[i].ts = aux;
-        }
+         Ycomp[netlist[i].ts][netlist[i].ts]+=gCgs;
+         Ycomp[netlist[i].tg][netlist[i].tg]+=gCgs;
+         Ycomp[netlist[i].ts][netlist[i].tg]-=gCgs;
+         Ycomp[netlist[i].tg][netlist[i].ts]-=gCgs;
 
-        #ifdef DEBUG
-          printf ("vd %f vs %f vb %f vg %f\n", vAtual[netlist[i].td],vAtual[netlist[i].ts], vAtual[netlist[i].tb], vAtual[netlist[i].tg]);
-        #endif
-
-        double vgs = vAtual[netlist[i].tg]-vAtual[netlist[i].ts];
-        vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
-        double vbs = vAtual[netlist[i].tb]-vAtual[netlist[i].ts];
-
-        vgs *= (netlist[i].pnmos==nmos?1:-1);
-        vds *= (netlist[i].pnmos==nmos?1:-1);
-
-        vbs = (fabs(vbs)>netlist[i].phi/2.0?netlist[i].phi/2.0:vbs);
-
-        double vt = netlist[i].vt + netlist[i].gama * (sqrt((netlist[i].phi - fabs(vbs))) - sqrt((netlist[i].phi)));
-
-        vbs *= (netlist[i].pnmos==nmos?1:-1);
-
-        #ifdef DEBUG
-            printf ("vt: %f  vgs: %f vds: %f vs: %f ts %d\n", vt,vgs,vds, vAtual[netlist[i].ts], netlist[i].ts);
-        #endif
-
-
-        if (vgs < vt)
-        {
-             netlist[i].transistorOp = corte;
-       #ifdef DEBUG
-                 printf ("corte\n");
-       #endif
-        }
-        else if (vds < vgs - vt)
-        {
-           netlist[i].transistorOp = ohmica;
-       #ifdef DEBUG
-                 printf ("ohmica\n");
-       #endif
-        }
-        else
-        {
-          netlist[i].transistorOp = saturacao;
-      #ifdef DEBUG
-                printf ("saturacao\n");
-      #endif
-        }
-
-        if (netlist[i].transistorOp == saturacao)
-        {
-             gm = netlist[i].k * (netlist[i].w/netlist[i].l)* (2.0*(vgs - vt)) * (1 + netlist[i].lambda* vds);
-             gds = netlist[i].k * (netlist[i].w/netlist[i].l)* pow ((vgs - vt),2.0) * netlist[i].lambda;
-             io = netlist[i].k * (netlist[i].w/netlist[i].l) * pow((vgs - vt),2.0) * (1 + netlist[i].lambda * vds) - (gm * vgs) - (gds * vds);
-        }
-        else if (netlist[i].transistorOp == ohmica)
-        {
-             gm = netlist[i].k * (netlist[i].w/netlist[i].l)*(2.0* vds)*(1+ netlist[i].lambda* vds);
-             gds = netlist[i].k * (netlist[i].w/netlist[i].l) * (2.0*(vgs - vt) - 2 * vds + 4.0* netlist[i].lambda * (vgs - vt) * vds - 3.0*netlist[i].lambda * pow (vds,2.0));
-             io = netlist[i].k * (netlist[i].w/netlist[i].l) * (2.0* (vgs - vt)*vds - pow (vds,2.0)) - (gm * vgs) - (gds * vds);
-        }
-
-        gmb = (gm*netlist[i].gama)/(2*sqrt(fabs(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))));
-
-        io-= (gmb * vbs);
-        io*=(netlist[i].pnmos == pmos?-1:1);
-
-     #ifdef DEBUG
-       printf ("gm %e gmb %e  gds %e io %e \n\n", gm, gds, gmb, io);
-   #endif
-
-       Ycomp[netlist[i].td][netlist[i].tb]+=gmb;
-       Ycomp[netlist[i].ts][netlist[i].ts]+=gmb;
-       Ycomp[netlist[i].td][netlist[i].ts]-=gmb;
-       Ycomp[netlist[i].ts][netlist[i].tb]-=gmb;
-
-       Ycomp[netlist[i].td][netlist[i].tg]+=gm;
-       Ycomp[netlist[i].ts][netlist[i].ts]+=gm;
-       Ycomp[netlist[i].td][netlist[i].ts]-=gm;
-       Ycomp[netlist[i].ts][netlist[i].tg]-=gm;
-
-       Ycomp[netlist[i].td][netlist[i].td]+=gds;
-       Ycomp[netlist[i].ts][netlist[i].ts]+=gds;
-       Ycomp[netlist[i].td][netlist[i].ts]-=gds;
-       Ycomp[netlist[i].ts][netlist[i].td]-=gds;
-
-
-       Ycomp[netlist[i].td][netlist[i].td]+=g;
-       Ycomp[netlist[i].tg][netlist[i].tg]+=g;
-       Ycomp[netlist[i].td][netlist[i].tg]-=g;
-       Ycomp[netlist[i].tg][netlist[i].td]-=g;
-
-       Ycomp[netlist[i].ts][netlist[i].ts]+=g;
-       Ycomp[netlist[i].tg][netlist[i].tg]+=g;
-       Ycomp[netlist[i].ts][netlist[i].tg]-=g;
-       Ycomp[netlist[i].tg][netlist[i].ts]-=g;
-
-       Ycomp[netlist[i].tb][netlist[i].tb]+=g;
-       Ycomp[netlist[i].tg][netlist[i].tg]+=g;
-       Ycomp[netlist[i].tb][netlist[i].tg]-=g;
-       Ycomp[netlist[i].tg][netlist[i].tb]-=g;
-
-       Ycomp[netlist[i].td][nv+1]-=io;
-       Ycomp[netlist[i].ts][nv+1]+=io;
+         Ycomp[netlist[i].tb][netlist[i].tb]+=gCgb;
+         Ycomp[netlist[i].tg][netlist[i].tg]+=gCgb;
+         Ycomp[netlist[i].tb][netlist[i].tg]-=gCgb;
+         Ycomp[netlist[i].tg][netlist[i].tb]-=gCgb;
 
    }
     else if (tipo=='O') {
