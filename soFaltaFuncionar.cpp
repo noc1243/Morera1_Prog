@@ -55,26 +55,17 @@ Os nos podem ser nomes
 #define J dcomplex(0.0,1.0)
 #define UM 0.9999999999990
 #define ZERO 0.0000000000001
+
 typedef std::complex<double> dcomplex;
 //#define PI  (4*atan(1))
 #define PI acos(-1.0)
 #define MAX_ERRO 1e-9
 #define  NMAX  50
 
-typedef struct {
-     double R,I;  //algebraic form
-  } COMPLEX;
-
-typedef COMPLEX Matc[NMAX][NMAX];
-  typedef COMPLEX Vecc[NMAX];
-  typedef int Veci[NMAX];
- Matc A; Vecc B, X;
-
-
-
 using namespace std;
 
 enum ptoOperacao { corte, ohmica, saturacao};
+
 
 enum mosType { nmos, pmos};
 
@@ -83,10 +74,13 @@ typedef struct elemento { /* Elemento do netlist */
   double valor, modulo, fase;
   double l,w,k,vt,lambda,gama,phi,ld, cOx;
   double cgb, cgs, cgd;
+  char nomeL1[MAX_NOME], nomeL2[MAX_NOME];
   mosType pnmos;
   int a,b,c,d,x,y,td,tg,ts,tb; // nos dos elementos, incluindo os do MOSFET
   ptoOperacao transistorOp;
 } elemento;
+
+elemento netlist[MAX_ELEM]; /* Netlist */
 
 struct cmd
 {
@@ -94,8 +88,6 @@ struct cmd
   int ptos, ptInicio, ptFim;
   bool temComando;
 } comando;
-
-elemento netlist[MAX_ELEM]; /* Netlist */
 
 int
   ne, /* Elementos */
@@ -139,236 +131,15 @@ int vezNConvergiu = 0; //Conta a quantidade de vezes que o algoritmo nao converg
 int resolversistema(void);
 int resolverSistemaAC(void);
 int numero(char *nome);
+int achaIndutor(char *nome);
 void controleConvergencia ( double vAtual[], double vProximo[], int iteracoes );
 void CalculaCapacitancias (elemento *netlist);
 void montaEstampaDC();
 void montaEstampaAC(double frequencia);
+inline int retornaValorIndutor (int LN);
 inline double sind (double angulo);
 inline double cosd (double angulo);
 
-
-double CABS(COMPLEX Z) {
-    return sqrt(Z.R*Z.R + Z.I*Z.I);
-  }
-
-  void CADD(COMPLEX Z1, COMPLEX Z2, COMPLEX *Z) {
-    Z->R = Z1.R + Z2.R;
-    Z->I = Z1.I + Z2.I;
-  }
-
-  void CDIF(COMPLEX Z1, COMPLEX Z2, COMPLEX *Z) {
-    Z->R = Z1.R - Z2.R;
-    Z->I = Z1.I - Z2.I;
-  }
-
-  void CMUL(COMPLEX Z1, COMPLEX Z2, COMPLEX *Z) {
-    Z->R = Z1.R*Z2.R - Z1.I*Z2.I;
-    Z->I = Z1.R*Z2.I + Z1.I*Z2.R;
-  }
-
-  void CDIV(COMPLEX Z1, COMPLEX Z2, COMPLEX *Z) {
-    double d; COMPLEX C;
-    d = Z2.R*Z2.R+Z2.I*Z2.I;
-    if (d>2.2e-16) {
-      C.R=Z2.R; C.I=-Z2.I;
-      CMUL(Z1,C,Z);
-      Z->R=Z->R/d; Z->I=Z->I/d;
-    }
-  }
-
-  void CSwap(COMPLEX *Z1, COMPLEX *Z2) {
-    COMPLEX  C;
-    C.R=Z1->R; C.I=Z1->I;
-    Z1->R=Z2->R; Z1->I=Z2->I;
-    Z2->R=C.R; Z2->I=C.I;
-  }
-
-
-  /****************************************************************
-  * TSCGT procedure implements the triangularization algorithm of *
-  * Gauss with full pivoting at each step for a complex matrix, A *
-  * and saves the made transformations in KP and LP.              *
-  * ------------------------------------------------------------- *
-  * INPUTS:                                                       *
-  *          N:   size of complex matrix A                        *
-  *          A:   complex matrix of size N x N                    *
-  * OUTPUTS;                                                      *
-  *          it:  =0 if A is singular, else =1.                   *
-  *           C:  contains the upper triangular matrix and the    *
-  *               multipliers used during the process.            *
-  *          KP:  contains the column exchanges.                  *
-  *          LP:  contains the line exchanges.                    *
-  ****************************************************************/
-  void TSCGT(double eps, int N, Matc A, int *it, Matc C, Veci KP, Veci LP) {
-  int i,j,k,k0,l0;
-  COMPLEX C0,C1,P0,T0;
-
-    for (i=1; i<=N; i++)
-	  for(j=1; j<=N; j++) {
-        C[i][j].R=A[i][j].R;
-        C[i][j].I=A[i][j].I;
-      }
-
-    *it=1; k=1;
-    while (*it==1 && k<N) {
-      P0.R=C[k][k].R; P0.I=C[k][k].I;
-      l0=k; k0=k;
-      for (i=k; i<=N; i++)
-        for (j=1; j<=N; j++)
-		  if (CABS(C[i][j]) > CABS(P0)) {
-            P0.R=C[i][j].R; P0.I=C[i][j].I;
-            l0=i; k0=j;
-          }
-      LP[k]=l0; KP[k]=k0;
-      if (CABS(P0) < eps)
-        *it=0;
-      else {
-        if (l0!=k)
-		  for (j=k; j<=N; j++) {
-            T0.R=C[k][j].R; T0.I=C[k][j].I;
-            C[k][j].R=C[l0][j].R;
-            C[k][j].I=C[l0][j].I;
-            C[l0][j].R=T0.R;
-            C[l0][j].I=T0.I;
-          }
-        if (k0!=k)
-		  for (i=1; i<=N; i++) {
-            T0.R=C[i][k].R; T0.I=C[i][k].I;
-            C[i][k].R=C[i][k0].R;
-            C[i][k].I=C[i][k0].I;
-            C[i][k0].R=T0.R;
-            C[i][k0].I=T0.I;
-          }
-		for (i=k+1; i<=N; i++) {
-          C0.R=C[i][k].R; C0.I=C[i][k].I;
-		  CDIV(C0,P0,&C[i][k]);
-          for (j=k+1; j<=N; j++) {
-            C0.R=C[i][j].R; C0.I=C[i][j].I;
-            CMUL(C[i][k],C[k][j],&C1);
-            CDIF(C0,C1,&C[i][j]);
-          }
-        }
-        k++;
-      }
-    }
-    if (*it==1 && CABS(C[N][N]) < eps)  *it=0;
-  } //TSCGT()
-
-  /*************************************************************
-  * Function BSCGT calculates the solution of upper triangular *
-  * system [S(n-1)] by the back substitution method and deduces*
-  * from it the solution of system [S]. The call must be made  *
-  * only after a call to TSCGT and the matrix of [S] must be   *
-  * regular.                                                   *
-  * ---------------------------------------------------------- *
-  * INPUTS:                                                    *
-  *         N : size of matrix C                               *
-  *         C:  contains the upper triangular matrix and the   *
-  *             multipliers used during the triangularization  *
-  *             process (in output of TSCGT).     .            *
-  *         W : contains the right-side coefficients           *
-  *             (modified in the process).                     *
-  *         KP: contains the column exchanges.                 *
-  *         LP: contains the line exchanges.                   *
-  * OUTPUT:                                                    *
-  *         Z : system solution complex vector.                *
-  *************************************************************/
-  void BSCGT(int N, Matc C, Vecc W, Veci KP, Veci LP, Vecc Z) {
-    int i,j,k,k0,l0;
-    COMPLEX C0,C1,S,Z0;
-
-    Z0.R=0.0; Z0.I=0.0;
-    for (k=1; k<N; k++) {
-      l0=LP[k];
-      if (l0!=k)  CSwap(&W[k],&W[l0]);
-      for (i=k+1; i<=N; i++) {
-        C0.R=W[i].R; C0.I=W[i].I;
-        CMUL(C[i][k],W[k],&C1); CDIF(C0,C1,&W[i]);
-      }
-    }
-    CDIV(W[N],C[N][N],&Z[N]);
-    for (i=N-1; i>0; i--) {
-      S.R=Z0.R; S.I=Z0.I;
-      for (j=i+1; j<=N; j++) {
-        C0.R=S.R; C0.I=S.I;
-        CMUL(C[i][j],Z[j],&C1); CADD(C0,C1,&S);
-      }
-      CDIF(W[i],S,&C0);
-      CDIV(C0,C[i][i],&Z[i]);
-    }
-    for (k=N-1; k>0; k--) {
-      k0=KP[k];
-      if (k0!=k)  CSwap(&Z[k],&Z[k0]);
-    }
-  } // BSCGT()
-
-
-  /************************************************************
-  * Solve a Complex Linear System AX = B By Gauss Method with *
-  * full pivoting and a correction process.                   *
-  * --------------------------------------------------------- *
-  * INPUTS:                                                   *
-  *         eps, dta : absolute and relative precisions       *
-  *         M : maximum number of iterations                  *
-  *         N : size of linear system                         *
-  *         A : complex matrix                                *
-  *         B : right-hand side (complex vector)              *
-  * OUTPUTS:                                                  *
-  *         it: flag, =-1 if no convergence, =0 if matrix A   *
-  *             is singular, =1 convergence ok.               *
-  *         X : contains system solution (X1,X2,...,Xn)       *
-  *                                                           *
-  ************************************************************/
-  void RSLCGTC(double eps, double dta, int M, int N, Matc A, Vecc B,
-	           int *it, Vecc X)  {
-    int I,Jota,L;
-    double phi1,phi2;
-    COMPLEX C0,C1,S,Z0;
-    Matc C; Vecc B1, W, Z;
-	Veci KP, LP;
-
-    Z0.R=0.0; Z0.I=0.0;
-
-    TSCGT(eps,N,A,it,C,KP,LP);
-
-	if (*it==1) {
-
-// Save B in B1 before BSCGT
-      for (Jota=1; Jota<=N; Jota++) B1[Jota] = B[Jota];
-
-      BSCGT(N,C,B,KP,LP, X);
-
-// Restore B after BSCGT
-      for (Jota=1; Jota<=N; Jota++) B[Jota] = B1[Jota];
-
-      *it=-1; L=1;
-      while (*it==-1 && L<=M) {
-        phi1=0.0;
-        for (I=1; I<=N; I++)
-          if (CABS(X[I]) > phi1)  phi1=CABS(X[I]);
-		for (I=1; I<=N; I++) {
-          S.R=Z0.R; S.I=Z0.I;
-          for (Jota=1; Jota<=N; Jota++) {
-            C0.R=S.R; C0.I=S.I;
-            CMUL(A[I][Jota],X[Jota], &C1);
-            CADD(C0,C1, &S);
-          }
-          CDIF(B[I],S, &W[I]);
-        }
-
-        BSCGT(N,C,W,KP,LP,Z);
-
-        for (I=1; I<=N; I++) {
-          C0.R=X[I].R; C0.I=X[I].I;
-          CADD(C0,Z[I], &X[I]);
-        }
-        phi2=0.0;
-        for (I=1; I<=N; I++)
-          if (CABS(Z[I]) > phi2)  phi2=CABS(Z[I]);
-        if (phi2/phi1 < dta) *it=1; else L++;
-	  } // while
-	} // if *it==1
-  } // RSLCGTC()
 
 int main(void)
 {
@@ -439,8 +210,6 @@ int main(void)
       netlist[ne].c=numero(nc);
       netlist[ne].d=numero(nd);
     }
-    else if (tipo == 'K')
-    	continue;
 
     else if (tipo == 'M')
     {
@@ -456,6 +225,9 @@ int main(void)
       netlist[ne].cOx = 2* netlist[ne].k/u;
       linear = false;
     }
+     else if (tipo=='K'){
+         sscanf(p,"%10s%10s%lg",&netlist[ne].nomeL1,&netlist[ne].nomeL2,&netlist[ne].valor);
+     }
     else if (tipo=='*') { /* Comentario comeca com "*" */
       printf("Comentario: %s",txt);
       ne--;
@@ -538,8 +310,8 @@ int main(void)
     montaEstampaDC();
     #ifdef DEBUG
     /* Opcional: Mostra o sistema apos a montagem da estampa */
-    if (i <= nv)
-      printf("Sistema apos a estampa de %s\n",netlist[i].nome);
+    //if (i <= nv)
+     printf("Sistema apos a estampa de %s\n",netlist[nv].nome);
 
     for (k=1; k<=nv; k++) {
       for (j=1; j<=nv+1; j++)
@@ -616,63 +388,25 @@ int main(void)
       {
         printf("\nFrequencia: %f\n", freq);
         montaEstampaAC(freq);
-//     for (i=1; i<=nv; i++) {
-//     for (j=1; j<=nv+1; j++)
-//        if (abs(Ycomp[i][j])!=0) cout << Ycomp[i][j];//printf("%+3.1f ",Yn[i][j]);
-//     else printf(" ......... ");
-//          printf("\n");
-//     }
-//        double eps=1e-350; double dta=1e-350; int M=1; int it;
-//
-//        for (int col =1; col <nv+1; col ++)
-//        {
-//             for (int row = 1; row<nv+1; row++)
-//             {
-//               A[col][row].R = Ycomp[col][row].real();
-//               A[col][row].I = Ycomp[col][row].imag();
-//             }
-//             B[col].R = Ycomp[col][nv+1].real();
-//             B[col].I = Ycomp[col][nv+1].imag();
-//        }
-//
-//        for (int col =1; col <nv+1; col ++)
-//        {
-//             for (int row = 1; row<nv+1; row++)
-//               cout << A[col][row].R << " ";
-//             cout << B[col].R <<endl;
-//        }
-
-//        RSLCGTC(eps,dta,M,nv,A,B,&it,X);
-//
-//  printf("it: %d", it);
-//     printf("\n System solutions:\n");
-//  for (int I=1; I<=nv; I++) {
-//    printf("  X%d = %f", I, X[I].R);
-//    if (X[I].I >= 0.0) printf(" + ");
-//    else printf(" - ");
-//    printf("%f I\n", fabs(X[I].I));
-//  }
-  //getch();
-
-        //if (resolverSistemaAC()) exit(-1);
-//         Mostra solucao
-//        printf("Solucao:\n");
-//        strcpy(txt,"Tensao");
-//        for (int col =0; col <nv+1; col++)
-//        {
-//          Ycomp[col][nv+1] = X[col].R + X[col].I * J;
-//        }
-
-
+     for (k=1; k<=nv; k++) {
+       for (j=1; j<=nv+1; j++)
+        if (abs(Ycomp[k][j])!=0.0) cout << Ycomp[k][j];
+        else printf("  ..... ");
+      printf("\n");
+     }
         resolverSistemaAC();
+
         //Mostra solucao
         printf("Solucao:\n");
         strcpy(txt,"Tensao");
 
         for (i=1; i<=nv; i++) {
-          if (i==nn+1) strcpy(txt,"Corrente");
+         if (i==nn+1) strcpy(txt,"Corrente");
           printf("MODULO %s %s: %g\n",txt,lista[i], abs(Ycomp[i][nv+1]));
-          printf("FASE %s %s: %g\n",txt,lista[i],( (180.0/ PI) *  arg(Ycomp[i][nv+1] ) ) );
+          if (fabs(Ycomp[i][nv+1].real())<ZERO && fabs(Ycomp[i][nv+1].imag())<ZERO)
+            printf("FASE: %s %s: 0\n",txt,lista[i]);
+          else
+            printf("FASE %s %s: %g\n",txt,lista[i],( (180.0/ PI) *  arg(Ycomp[i][nv+1] ) ) );
         }
         nPtos++;
         printf("\nFrequencia: %f\n", freq);
@@ -788,6 +522,48 @@ int numero(char *nome)
   }
   printf("Dentro da Convergencia: %d", convergiu );
 }
+
+//funcao usada para criar a estampa AC do transformador
+//funcionando
+int achaIndutor(char nome[])
+{
+     cout << "nome[0]: " << nome[0] << endl;
+     cout << "nome: " << nome << endl;
+     getch();
+  //nao e um indutor
+  if (nome[0] != 'L')
+  {
+     printf("O elemento nao e um indutor\n");
+     getch();
+     exit(1);
+  }
+  char nomeCmp[MAX_NOME+1];
+  int cont=1;
+     nomeCmp[0] = 'j';
+     do
+     {
+          nomeCmp[cont] = nome[cont-1];
+          cont++;
+     }
+     while(nome[cont-1]!='\0');
+  nomeCmp[cont] = '\0';
+  cout << "nomeCmp: " << nomeCmp << endl;
+
+  int i;
+  //while (!achou && i<=nv)
+  for (i = 0 ; i <= nv; i++)
+    if (!strcmp(nomeCmp,lista[i]))
+     return(i);
+
+  cout << "nv: " << nv << endl;
+  cout << "i: " << i << endl;
+  if (i==nv+1) {
+      printf("Indutor inexistente\n");
+      exit(1);
+  }
+}
+
+
 void controleConvergencia ( double vAtual[], double vProximo[], int iteracoes )
 {
   double maxVal = 0;
@@ -922,10 +698,9 @@ void montaEstampaDC()
     else if (tipo=='V') {
       Yn[netlist[i].a][netlist[i].x]+=1;
       Yn[netlist[i].b][netlist[i].x]-=1;
-      Yn[netlist[i].x][netlist[i].b]-=1;
-      Yn[netlist[i].x][netlist[i].a]+=1;
-      //if ((linear) || (vezes))
-        Yn[netlist[i].x][nv+1]+=netlist[i].valor;
+      Yn[netlist[i].x][netlist[i].b]+=1;
+      Yn[netlist[i].x][netlist[i].a]-=1;
+      Yn[netlist[i].x][nv+1]-=netlist[i].valor;
     }
     else if (tipo=='E') {
       g=netlist[i].valor;
@@ -1093,16 +868,14 @@ void montaEstampaDC()
           Yn[netlist[i].ts][nv+1]+=io;
 
      }
+    else if (tipo=='K'){
+          continue;
+    }
     else if (tipo=='O') {
       Yn[netlist[i].a][netlist[i].x]+=1;
       Yn[netlist[i].b][netlist[i].x]-=1;
       Yn[netlist[i].x][netlist[i].c]+=1;
       Yn[netlist[i].x][netlist[i].d]-=1;
-    }
-    else
-    {
-         cout << "Deu ruim: " << endl;
-         getch();
     }
   }
 }
@@ -1155,9 +928,9 @@ void montaEstampaAC(double frequencia)
 
       Ycomp[netlist[i].a][netlist[i].x]+=1;
       Ycomp[netlist[i].b][netlist[i].x]-=1;
-      Ycomp[netlist[i].x][netlist[i].b]-=1;
-      Ycomp[netlist[i].x][netlist[i].a]+=1;
-      Ycomp[netlist[i].x][nv+1]+=gComp;
+      Ycomp[netlist[i].x][netlist[i].b]+=1;
+      Ycomp[netlist[i].x][netlist[i].a]-=1;
+      Ycomp[netlist[i].x][nv+1]-=gComp;
     }
     else if (tipo=='E') {
       g=netlist[i].valor;
@@ -1200,11 +973,9 @@ void montaEstampaAC(double frequencia)
     }
 
     //se for indutor, a condutancia em DC tende a infinito
-    else if (tipo=='L')
-    {
+    else if (tipo=='L'){
          //complex <double> gComp = J * ((2.0 * PI *netlist[i].valor) * frequencia) ;
        complex <double> gComp = 0.0 + J * ((2.0 * (double)PI *netlist[i].valor) * frequencia) ;
-       cout << "valor indutor: " << netlist[i].valor << endl;
        Ycomp[netlist[i].a][netlist[i].x]+=1.0 + 0.0*J;
        Ycomp[netlist[i].b][netlist[i].x]-=1.0 + 0.0*J;
        Ycomp[netlist[i].x][netlist[i].a]-=1.0+ 0.0*J;
@@ -1212,8 +983,7 @@ void montaEstampaAC(double frequencia)
        Ycomp[netlist[i].x][netlist[i].x]+=gComp;
     }
 
-   else if (tipo=='M')
-   {
+   else if (tipo=='M'){
         complex <double> gCgs = 2 * PI * netlist[i].cgs * J;
         complex <double> gCgd = 2 * PI * netlist[i].cgd * J;
         complex <double> gCgb = 2 * PI * netlist[i].cgb * J;
@@ -1234,6 +1004,22 @@ void montaEstampaAC(double frequencia)
          Ycomp[netlist[i].tg][netlist[i].tb]-=gCgb;
 
    }
+    else if (tipo=='K'){
+          int L1 = achaIndutor(netlist[i].nomeL1);
+          int L2 = achaIndutor(netlist[i].nomeL2);
+          //pensar numa forma melhor de obter o valor dos indutores sem ter erro numerico
+          double valL1 = netlist[retornaValorIndutor (L1)].valor;
+          double valL2 = netlist[retornaValorIndutor (L2)].valor;
+          cout << "val1: " << valL1 << " val2: " << valL2 << endl;
+          printf("val1: %.6f val2: %.6f\n", valL1, valL2);
+
+          double M = netlist[i].valor * sqrt(valL1 * valL2);
+          cout << "sqrt: " << sqrt(valL1 * valL2) << endl;
+          cout << "acoplamento: "<< netlist[i].valor << endl;
+
+          Ycomp[L1][L2] += 0.0 + J*2.0*PI*frequencia*M;
+          Ycomp[L2][L1] += 0.0 + J*2.0*PI*frequencia*M;
+    }
     else if (tipo=='O') {
        Ycomp[netlist[i].a][netlist[i].x]+=1;
        Ycomp[netlist[i].b][netlist[i].x]-=1;
@@ -1241,6 +1027,14 @@ void montaEstampaAC(double frequencia)
        Ycomp[netlist[i].x][netlist[i].d]-=1;
     }
   }
+}
+
+inline int retornaValorIndutor (int LN)
+{
+  int cont = 1;
+  while(LN != netlist[cont].x)
+    cont++;
+  return(cont);
 }
 
 inline double sind (double angulo)
