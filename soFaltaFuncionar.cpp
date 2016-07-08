@@ -55,6 +55,7 @@ Os nos podem ser nomes
 #define J dcomplex(0.0,1.0)
 #define UM 0.9999999999990
 #define ZERO 0.0000000000001
+#define RAD 1
 
 typedef std::complex<double> dcomplex;
 //#define PI  (4*atan(1))
@@ -368,11 +369,66 @@ int main(void)
   {
     char modo[MAX_NOME];
     strcpy(modo, comando.modo);
-    if (!strcmp(modo, "OCT"))
+    int nPtos = 0;
+
+    //passos funcionando
+    if (!strcmp(modo, "DEC"))
     {
+      double passo = 1.0/ (comando.ptos - 1);
+      double freq = 0.0;
+      for (freq = comando.ptInicio; freq <= comando.ptFim; freq *= pow(10,1.0/(comando.ptos - 1)) )
+      {
+          printf("\nFrequencia: %f\n", freq);
+          montaEstampaAC(freq);
+          resolverSistemaAC();
+
+          //Mostra solucao
+          printf("Solucao:\n");
+          strcpy(txt,"Tensao");
+
+          for (i=1; i<=nv; i++) {
+             if (i==nn+1) strcpy(txt,"Corrente");
+              printf("MODULO %s %s: %g\n",txt,lista[i], abs(Ycomp[i][nv+1]));
+              if (fabs(Ycomp[i][nv+1].real())<ZERO && fabs(Ycomp[i][nv+1].imag())<ZERO)
+                printf("FASE: %s %s: 0\n",txt,lista[i]);
+              else
+                printf("FASE %s %s: %g\n",txt,lista[i],( (180.0/ PI) *  arg(Ycomp[i][nv+1] ) ) );
+
+          }
+          nPtos++;
+          printf("\nFrequencia: %f\n", freq);
+          getch();
+        }
+        printf("Foram plotados %d pontos\n", nPtos);
     }
     else if (!strcmp(modo, "OCT"))
     {
+      double passo = 1.0/ (comando.ptos - 1);
+      double freq = 0.0;
+      for (freq = comando.ptInicio; freq <= comando.ptFim; freq *= pow(2,1.0/(comando.ptos - 1)) )
+      {
+          printf("\nFrequencia: %f\n", freq);
+          montaEstampaAC(freq);
+          resolverSistemaAC();
+
+          //Mostra solucao
+          printf("Solucao:\n");
+          strcpy(txt,"Tensao");
+
+          for (i=1; i<=nv; i++) {
+             if (i==nn+1) strcpy(txt,"Corrente");
+              printf("MODULO %s %s: %g\n",txt,lista[i], abs(Ycomp[i][nv+1]));
+              if (fabs(Ycomp[i][nv+1].real())<ZERO && fabs(Ycomp[i][nv+1].imag())<ZERO)
+                printf("FASE: %s %s: 0\n",txt,lista[i]);
+              else
+                printf("FASE %s %s: %g\n",txt,lista[i],( (180.0/ PI) *  arg(Ycomp[i][nv+1] ) ) );
+
+          }
+          nPtos++;
+          printf("\nFrequencia: %f\n", freq);
+          getch();
+        }
+        printf("Foram plotados %d pontos\n", nPtos);
     }
     else
     {
@@ -382,18 +438,11 @@ int main(void)
         comando.ptFim = 100000;
         comando.ptos = 1000;
       }
-      int nPtos = 0;
       double passo = ( (comando.ptFim - comando.ptInicio)/ (comando.ptos - 1) );
       for (double freq = (double) comando.ptInicio; freq <= (double)comando.ptFim; freq += passo)
       {
         printf("\nFrequencia: %f\n", freq);
         montaEstampaAC(freq);
-     for (k=1; k<=nv; k++) {
-       for (j=1; j<=nv+1; j++)
-        if (abs(Ycomp[k][j])!=0.0) cout << Ycomp[k][j];
-        else printf("  ..... ");
-      printf("\n");
-     }
         resolverSistemaAC();
 
         //Mostra solucao
@@ -407,8 +456,8 @@ int main(void)
             printf("FASE: %s %s: 0\n",txt,lista[i]);
           else
             printf("FASE %s %s: %g\n",txt,lista[i],( (180.0/ PI) *  arg(Ycomp[i][nv+1] ) ) );
+          nPtos++;
         }
-        nPtos++;
         printf("\nFrequencia: %f\n", freq);
         getch();
       }
@@ -527,9 +576,6 @@ int numero(char *nome)
 //funcionando
 int achaIndutor(char nome[])
 {
-     cout << "nome[0]: " << nome[0] << endl;
-     cout << "nome: " << nome << endl;
-     getch();
   //nao e um indutor
   if (nome[0] != 'L')
   {
@@ -547,7 +593,6 @@ int achaIndutor(char nome[])
      }
      while(nome[cont-1]!='\0');
   nomeCmp[cont] = '\0';
-  cout << "nomeCmp: " << nomeCmp << endl;
 
   int i;
   //while (!achou && i<=nv)
@@ -555,8 +600,6 @@ int achaIndutor(char nome[])
     if (!strcmp(nomeCmp,lista[i]))
      return(i);
 
-  cout << "nv: " << nv << endl;
-  cout << "i: " << i << endl;
   if (i==nv+1) {
       printf("Indutor inexistente\n");
       exit(1);
@@ -675,7 +718,6 @@ void montaEstampaDC()
   /* Monta estampas */
   for (int i=1; i<=ne; i++) {
     tipo=netlist[i].nome[0];
-    printf ("\ntipo :%c, i:%d\n", tipo, i);
     if (tipo=='R') {
       g=1/netlist[i].valor;
       Yn[netlist[i].a][netlist[i].a]+=g;
@@ -896,7 +938,6 @@ void montaEstampaAC(double frequencia)
   /* Monta estampas */
   for (int i=1; i<=ne; i++) {
     tipo=netlist[i].nome[0];
-    //printf ("\ntipo :%c, i:%d\n", tipo, i);
     if (tipo=='R') {
       g=1/netlist[i].valor;
       Ycomp[netlist[i].a][netlist[i].a]+=g;
@@ -912,19 +953,12 @@ void montaEstampaAC(double frequencia)
       Ycomp[netlist[i].b][netlist[i].c]-=g;
     }
     else if (tipo=='I') {
-//      double real = netlist[i].modulo * cosd(netlist[i].fase);
-//      double imag = netlist[i].modulo * sind(netlist[i].fase);
-//      complex <double> gComp = real + J*imag;
       complex<double> gComp = netlist[i].modulo * cosd(netlist[i].fase) + J * netlist[i].modulo * sind(netlist[i].fase);
       Ycomp[netlist[i].a][nv+1]-=gComp;
       Ycomp[netlist[i].b][nv+1]+=gComp;
     }
     else if (tipo=='V') {
-//      double real = netlist[i].modulo * cosd(netlist[i].fase);
-//      double imag = netlist[i].modulo * sind(netlist[i].fase);
-//      complex <double> gComp = real + J*imag;
       complex<double> gComp = netlist[i].modulo * cosd(netlist[i].fase) + J * netlist[i].modulo * sind(netlist[i].fase);
-//      cout << "gComp:" <<  gComp << endl;
 
       Ycomp[netlist[i].a][netlist[i].x]+=1;
       Ycomp[netlist[i].b][netlist[i].x]-=1;
@@ -964,7 +998,11 @@ void montaEstampaAC(double frequencia)
     }
     else if (tipo=='C')
     {
-      complex <double> gComp = 0.0 + J * (2.0 * (double)PI *netlist[i].valor * frequencia) ;
+      complex <double> gComp;
+      if (RAD)
+         gComp = 0.0 + J * (netlist[i].valor * frequencia) ;
+      else
+         gComp = 0.0 + J * (2.0 * (double)PI *netlist[i].valor * frequencia) ;
       Ycomp[netlist[i].a][netlist[i].a]+=gComp;
       Ycomp[netlist[i].b][netlist[i].b]+=gComp;
       Ycomp[netlist[i].a][netlist[i].b]-=gComp;
@@ -974,8 +1012,12 @@ void montaEstampaAC(double frequencia)
 
     //se for indutor, a condutancia em DC tende a infinito
     else if (tipo=='L'){
-         //complex <double> gComp = J * ((2.0 * PI *netlist[i].valor) * frequencia) ;
-       complex <double> gComp = 0.0 + J * ((2.0 * (double)PI *netlist[i].valor) * frequencia) ;
+       complex <double> gComp;
+       if (RAD)
+          gComp = 0.0 + J * ((netlist[i].valor) * frequencia) ;
+       else
+          gComp = 0.0 + J * ((2.0 * (double)PI *netlist[i].valor) * frequencia) ;
+
        Ycomp[netlist[i].a][netlist[i].x]+=1.0 + 0.0*J;
        Ycomp[netlist[i].b][netlist[i].x]-=1.0 + 0.0*J;
        Ycomp[netlist[i].x][netlist[i].a]-=1.0+ 0.0*J;
@@ -1010,12 +1052,9 @@ void montaEstampaAC(double frequencia)
           //pensar numa forma melhor de obter o valor dos indutores sem ter erro numerico
           double valL1 = netlist[retornaValorIndutor (L1)].valor;
           double valL2 = netlist[retornaValorIndutor (L2)].valor;
-          cout << "val1: " << valL1 << " val2: " << valL2 << endl;
           printf("val1: %.6f val2: %.6f\n", valL1, valL2);
 
           double M = netlist[i].valor * sqrt(valL1 * valL2);
-          cout << "sqrt: " << sqrt(valL1 * valL2) << endl;
-          cout << "acoplamento: "<< netlist[i].valor << endl;
 
           Ycomp[L1][L2] += 0.0 + J*2.0*PI*frequencia*M;
           Ycomp[L2][L1] += 0.0 + J*2.0*PI*frequencia*M;
