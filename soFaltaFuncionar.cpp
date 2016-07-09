@@ -39,6 +39,7 @@ Os nos podem ser nomes
 #include <complex>
 #include <iostream>
 #include <string>
+#include <time.h>
 #include "fstream"
 #define MAX_LINHA 80
 #define MAX_NOME 11
@@ -118,7 +119,8 @@ double
   gm = 0,
   gds = 0,
   gmb = 0,
-  io = 0;
+  io = 0,
+  tempVar[MAX_NOS+1];
 
 complex<double> Ycomp[MAX_NOS+1][MAX_NOS+2];
 
@@ -130,6 +132,7 @@ bool convergiu = false; //indica que a solucao convergiu
 int contadorConv = 0; //conta quantas vezes os calculos deram erros menores
 int iteracoes = 0; //conta o numero de iteracoes do alogoritmo
 int vezNConvergiu = 0; //Conta a quantidade de vezes que o algoritmo nao convergiu
+int numMaxIteracoes = 0;
 
 int resolversistema(void);
 int resolverSistemaAC(void);
@@ -149,6 +152,7 @@ void gravaPrimeiraLinhaTab (ofstream& resultadoTab);
 
 int main(void)
 {
+  srand (time(NULL));
   printf("Programa demonstrativo de analise nodal modificada\n");
   printf("Por Antonio Carlos M. de Queiroz - acmq@coe.ufrj.br\n");
   printf("Versao %s\n",versao);
@@ -487,6 +491,14 @@ int main(void)
 
 
         montaEstampaAC(freq);
+        for (int i=1; i<=nv; i++)
+        {
+        	for (int j=1; j<=nv+1; j++)
+        		if(abs(Ycomp[i][j])!= 0) cout << Ycomp[i][j];
+        		else cout << " ...... ";
+        	cout << endl;
+        }
+        getch();
         resolverSistemaAC();
 
         //Mostra solucao
@@ -551,7 +563,7 @@ int resolversistema(void)
     }
     if (fabs(t)<TOLG) {
       printf("Sistema singular\n");
-      printf ("%lf\n", (fabs(t) - TOLG)*1000000000);
+      //printf ("%lf\n", (fabs(t) - TOLG)*1000000000);
       return 1;
     }
     for (j=nv+1; j>0; j--) {  /* Basta j>i em vez de j>0 */
@@ -668,21 +680,20 @@ int achaIndutor(char nome[])
 void controleConvergencia ( double vAtual[], double vProximo[], int iteracoes )
 {
   double maxVal = 0;
-  double tempVar;
-  if (iteracoes < MAX_IT && (!iteracoes))
+  if (iteracoes < MAX_IT)// && (!iteracoes))
   {
      for (int cont = 0; cont <= nv; cont++)
      {
            //define o modo como o erro sera tratado
            if (fabs(vProximo[cont]) > REFVAL)
-             tempVar = fabs( ( vProximo[cont] - vAtual[cont] ) / vProximo[cont]);
+             tempVar[cont] = fabs( ( vProximo[cont] - vAtual[cont] ) / vProximo[cont]);
 
            if (vProximo[cont] < REFVAL)
-             tempVar = fabs(vProximo[cont] - vAtual[cont]);
+             tempVar[cont] = fabs(vProximo[cont] - vAtual[cont]);
 
            //pega sempre o mesmo valor
-           if (tempVar > maxVal)
-             maxVal = tempVar;
+           if (tempVar[cont] > maxVal)
+             maxVal = tempVar[cont];
           }
 
           //faz com o que as tensoes futuras sejam as atuais
@@ -734,7 +745,23 @@ void controleConvergencia ( double vAtual[], double vProximo[], int iteracoes )
              iteracoes = 0;
              mantemModelo = false;
              contadorConv = 0;
+             for (int cont=0; cont<=nv;cont++)
+             {
+            	 if (tempVar[cont]>=MAX_ERRO)
+            	 {
+            		 vAtual [cont] = (rand () % 20) - 10; //rand between -10 and 10
+            		 if (vAtual[cont] == 0) vAtual[cont] = 0.1;
+            		 vProximo [cont] = 0;
+            	 }
+             }
            }
+          numMaxIteracoes++;
+          if (numMaxIteracoes >= 10000)
+          {
+        	  cout << "Como o Lukita diria: nem fodendo que esta merda converge" << endl;
+        	  getch();
+        	  exit (0);
+          }
      }
 }
 
