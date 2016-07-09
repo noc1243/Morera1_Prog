@@ -46,6 +46,7 @@ Os nos podem ser nomes
 #define MAX_TIPO 5
 #define MAX_ELEM 50
 #define MAX_NOS 50
+//#define TOLG 1e-15
 #define TOLG 1e-15
 #define DEBUG
 #define FATORDC 1e-9 //fator multiplicativo para capacitores e indutores DC
@@ -488,6 +489,7 @@ int main(void)
         printf("\nFrequencia: %f\n", freq);
         sprintf (outVal, "%lg", freq);
         gravaTab (outVal, resultadoTab);
+        nPtos++;
 
 
         montaEstampaAC(freq);
@@ -523,8 +525,6 @@ int main(void)
             sprintf (outVal, "%lg", ( (180.0/ PI) *  arg(Ycomp[i][nv+1] ) ));
           }
           gravaTab (outVal, resultadoTab);
-
-          nPtos++;
         }
         gravaEndlTab (resultadoTab);
         printf("\nFrequencia: %f\n", freq);
@@ -1088,6 +1088,7 @@ void montaEstampaAC(double frequencia)
          gComp = 0.0 + J * (netlist[i].valor * frequencia) ;
       else
          gComp = 0.0 + J * (2.0 * (double)PI *netlist[i].valor * frequencia) ;
+
       Ycomp[netlist[i].a][netlist[i].a]+=gComp;
       Ycomp[netlist[i].b][netlist[i].b]+=gComp;
       Ycomp[netlist[i].a][netlist[i].b]-=gComp;
@@ -1111,25 +1112,35 @@ void montaEstampaAC(double frequencia)
     }
 
    else if (tipo=='M'){
-        complex <double> gCgs = 2 * PI * netlist[i].cgs * J;
-        complex <double> gCgd = 2 * PI * netlist[i].cgd * J;
-        complex <double> gCgb = 2 * PI * netlist[i].cgb * J;
+      complex <double> gCgs = 0.0 + J * 0.0;
+      complex <double> gCgd = 0.0 + J * 0.0;
+      complex <double> gCgb = 0.0 + J * 0.0;
+      if (RAD)
+      {
+         gCgs = J * netlist[i].cgs * frequencia;
+         gCgd = J * netlist[i].cgd * frequencia;
+         gCgb = J * netlist[i].cgb * frequencia;
+      }
+      else
+      {
+        gCgs = J * 2.0 * PI * netlist[i].cgs * frequencia;
+        gCgd = J * 2.0 * PI * netlist[i].cgd * frequencia;
+        gCgb = J * 2.0 * PI * netlist[i].cgb * frequencia;
+      }
+         Ycomp[netlist[i].td][netlist[i].tb]+=gmb;
+         Ycomp[netlist[i].ts][netlist[i].ts]+=gmb;
+         Ycomp[netlist[i].td][netlist[i].ts]-=gmb;
+         Ycomp[netlist[i].ts][netlist[i].tb]-=gmb;
 
+         Ycomp[netlist[i].td][netlist[i].tg]+=gm;
+         Ycomp[netlist[i].ts][netlist[i].ts]+=gm;
+         Ycomp[netlist[i].td][netlist[i].ts]-=gm;
+         Ycomp[netlist[i].ts][netlist[i].tg]-=gm;
 
-//         Ycomp[netlist[i].td][netlist[i].tb]+=gmb;
-//         Ycomp[netlist[i].ts][netlist[i].ts]+=gmb;
-//         Ycomp[netlist[i].td][netlist[i].ts]-=gmb;
-//         Ycomp[netlist[i].ts][netlist[i].tb]-=gmb;
-//
-//         Ycomp[netlist[i].td][netlist[i].tg]+=gm;
-//         Ycomp[netlist[i].ts][netlist[i].ts]+=gm;
-//         Ycomp[netlist[i].td][netlist[i].ts]-=gm;
-//         Ycomp[netlist[i].ts][netlist[i].tg]-=gm;
-//
-//         Ycomp[netlist[i].td][netlist[i].td]+=gds;
-//         Ycomp[netlist[i].ts][netlist[i].ts]+=gds;
-//         Ycomp[netlist[i].td][netlist[i].ts]-=gds;
-//         Ycomp[netlist[i].ts][netlist[i].td]-=gds;
+         Ycomp[netlist[i].td][netlist[i].td]+=gds;
+         Ycomp[netlist[i].ts][netlist[i].ts]+=gds;
+         Ycomp[netlist[i].td][netlist[i].ts]-=gds;
+         Ycomp[netlist[i].ts][netlist[i].td]-=gds;
 
          Ycomp[netlist[i].td][netlist[i].td]+=gCgd;
          Ycomp[netlist[i].tg][netlist[i].tg]+=gCgd;
@@ -1145,9 +1156,6 @@ void montaEstampaAC(double frequencia)
          Ycomp[netlist[i].tg][netlist[i].tg]+=gCgb;
          Ycomp[netlist[i].tb][netlist[i].tg]-=gCgb;
          Ycomp[netlist[i].tg][netlist[i].tb]-=gCgb;
-
-//         Ycomp[netlist[i].td][nv+1]-=io;
-//         Ycomp[netlist[i].ts][nv+1]+=io;
 
    }
     else if (tipo=='K'){
