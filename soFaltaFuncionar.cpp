@@ -12,6 +12,7 @@ Versao 1.0g - 15/10/2009 Le as linhas inteiras
 Versao 1.0h - 18/6/2011 Estampas correspondendo a modelos
 Versao 1.0i - 03/11/2013 Correcoes em *p e saida com sistema singular.
 Versao 1.0j - 26/11/2015 Evita operacoes com zero.
+Versao 2.0  - 09/07/2016 Ponto de polarizacao e Resposta em frequencia de circuitos com transistores MOS
 */
 
 /*
@@ -138,6 +139,7 @@ int vezNConvergiu = 0; //Conta a quantidade de vezes que o algoritmo nao converg
 int numMaxIteracoes = 0;//numero maximo de iteracoes feita pelo programa
 int numRandIteracoes = 0;
 double exc = 1.0;
+double tvgs, tvds, tvbs, ti0;
 
 int resolversistema(void); //acha o ponto de operacao do sistema
 int resolverSistemaAC(void); //faz a analise ac do circuito
@@ -341,7 +343,7 @@ int main(void)
   while (!convergiu)
   {
     montaEstampaDC();
-    #ifdef DEBUG
+    //#ifdef DEBUG
     /* Opcional: Mostra o sistema apos a montagem da estampa */
 
     if (modoExib == mostraTudo)
@@ -349,18 +351,18 @@ int main(void)
       printf("Sistema final para calculo do ponto de operacao\n");
       for (k=1; k<=nv; k++) {
         for (j=1; j<=nv+1; j++)
-          if (Yn[k][j]!=0) printf("%+3.3f ",Yn[k][j]);
-          else printf(" ..... ");
+          if (Yn[k][j]!=0) printf("%+.2e ",Yn[k][j]);
+          else printf(" ......... ");
         printf("\n");
       }
             getch();
     }
-    #endif
+    //#endif
     /* Resolve o sistema */
     if (resolversistema())
       return(1);
 
-  #ifdef DEBUG
+  //#ifdef DEBUG
   /* Opcional: Mostra o sistema resolvido */
   if (modoExib == mostraTudo)
   {
@@ -373,7 +375,7 @@ int main(void)
         getch();
       }
   }
-    #endif
+    //#endif
     /* Mostra solucao */
     if (modoExib != naoMostra)
     {
@@ -408,7 +410,9 @@ int main(void)
       CalculaCapacitancias (&netlist[i]);
       printf ("Gm= %.5e Gds= %.5e Gmb= %.5e\n", netlist[i].gm, netlist[i].gds, netlist[i].gmb);
       printf ("Cgs= %.5e Cgd= %.5e Cgb= %.5e \n", netlist[i].cgs, netlist[i].cgd, netlist[i].cgb);
-      getch();
+      printf ("vgs= %.5e vds= %.5e vbs= %.5e  io= %.5e \n", tvgs, tvds, tvbs, ti0);
+      if (modoExib != naoMostra)
+        getch();
     }
   }
 
@@ -595,7 +599,9 @@ int main(void)
       printf("Foram plotados %d pontos\n", nPtos);
     }
   }
-  getch();
+  if (modoExib != mostraTudo)
+    getch();
+
   resultadoTab.close();
   return 0;
 }
@@ -923,6 +929,7 @@ void montaEstampaDC()
           g =  FATORDC;
           netlist[i].gm = 0.0;
           netlist[i].gds = 0.0;
+          netlist[i].gmb = 0.0;
           io = 0.0;
 
           double vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
@@ -935,22 +942,23 @@ void montaEstampaDC()
           }
 
 		  #ifdef DEBUG
-          	  printf ("vd %f vs %f vb %f vg %f\n", vAtual[netlist[i].td],vAtual[netlist[i].ts], vAtual[netlist[i].tb], vAtual[netlist[i].tg]);
-		  getch();
+          	  //printf ("vd %f vs %f vb %f vg %f\n", vAtual[netlist[i].td],vAtual[netlist[i].ts], vAtual[netlist[i].tb], vAtual[netlist[i].tg]);
+		  //getch();
 		  #endif
 
           double vgs = vAtual[netlist[i].tg]-vAtual[netlist[i].ts];
           vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
           double vbs = vAtual[netlist[i].tb]-vAtual[netlist[i].ts];
 
-          vgs *= (netlist[i].pnmos==nmos?1:-1);
-          vds *= (netlist[i].pnmos==nmos?1:-1);
+          vgs *= (netlist[i].pnmos==nmos?1.0:-1.0);
+          vds *= (netlist[i].pnmos==nmos?1.0:-1.0);
 
           vbs = (fabs(vbs)>netlist[i].phi/2.0?netlist[i].phi/2.0:vbs);
 
           double vt = netlist[i].vt + netlist[i].gama * (sqrt((netlist[i].phi - fabs(vbs))) - sqrt((netlist[i].phi)));
+          //double vt = netlist[i].vt + netlist[i].gama * (sqrt((netlist[i].phi - vbs)) - sqrt((netlist[i].phi)));
 
-          vbs *= (netlist[i].pnmos==nmos?1:-1);
+          vbs *= (netlist[i].pnmos==nmos?1.0:-1.0);
 
           #ifdef DEBUG
           	  printf ("vt: %f  vgs: %f vds: %f vs: %f ts %d\n", vt,vgs,vds, vAtual[netlist[i].ts], netlist[i].ts);
@@ -983,7 +991,7 @@ void montaEstampaDC()
           {
         	  netlist[i].gm = netlist[i].k * (netlist[i].w/netlist[i].l)* (2.0*(vgs - vt)) * (1 + netlist[i].lambda* vds);
         	  netlist[i].gds = netlist[i].k * (netlist[i].w/netlist[i].l)* pow ((vgs - vt),2.0) * netlist[i].lambda;
-            io = netlist[i].k * (netlist[i].w/netlist[i].l) * pow((vgs - vt),2.0) * (1 + netlist[i].lambda * vds) - (netlist[i].gm * vgs) - (netlist[i].gds * vds);
+            io = netlist[i].k * (netlist[i].w/netlist[i].l) * pow((vgs - vt),2.0) * (1.0 + netlist[i].lambda * vds) - (netlist[i].gm * vgs) - (netlist[i].gds * vds);
           }
           else if (netlist[i].transistorOp == ohmica)
           {
@@ -992,18 +1000,27 @@ void montaEstampaDC()
             io = netlist[i].k * (netlist[i].w/netlist[i].l) * (2.0* (vgs - vt)*vds - pow (vds,2.0)) - (netlist[i].gm * vgs) - (netlist[i].gds * vds);
           }
 
-          netlist[i].gmb = (netlist[i].gm*netlist[i].gama)/(2*sqrt(fabs(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))));
+          if (gm != 0.0)
+            cout << "gm: " << gm << endl;
+          //Q?
+          //netlist[i].gmb = (netlist[i].gm*netlist[i].gama)/(sqrt(fabs(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))));
+          //netlist[i].gmb = (netlist[i].gm*netlist[i].gama)/(2*sqrt(fabs(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))));
+          //netlist[i].gmb = (netlist[i].gm*netlist[i].gama)/(2*sqrt(fabs(netlist[i].phi - (vbs) ) ));
 
-//          cout << "aux: " << (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]) << endl;
-//          cout << "aux2: " << netlist[i].gama << endl;
-//          cout << "aux2: " << gm << endl;
-//          getch();
-//          cout << "gmb: " << netlist[i].gmb << endl;
-          io-= (netlist[i].gmb * vbs);
-          io*=(netlist[i].pnmos == pmos?-1:1);
+          //GM ESTA IGUAL A 0.0 E FUNCIONA WTF?
+          netlist[i].gmb = (gm*netlist[i].gama)/(2*sqrt(fabs(netlist[i].phi - (vbs) ) ));
 
+          //io-= 0.0;
+          //io-= (netlist[i].gmb * vbs);
+          io*=(netlist[i].pnmos == pmos?-1.0:1.0);
+
+          tvgs = vgs;
+          tvds = vds;
+          tvbs = vbs;
+          //ti0 = netlist[i].k * (netlist[i].w/netlist[i].l) * (2.0* (vgs - vt)*vds - pow (vds,2.0)) * (1.0 + netlist[i].lambda * vds);
+          ti0 = netlist[i].k * (netlist[i].w/netlist[i].l) * pow((vgs - vt),2.0) * (1.0 + netlist[i].lambda * vds);
 	   	 #ifdef DEBUG
-		 	   printf ("gm %e gmb %e  gds %e io %e \n\n", gm, gmb, gds, io);
+		 	   //printf ("gm %e gmb %e  gds %e io %e \n\n", gm, gmb, gds, io);
 		 #endif
 
           Yn[netlist[i].td][netlist[i].tb]+=netlist[i].gmb;
@@ -1144,17 +1161,17 @@ void montaEstampaAC(double frequencia)
 
     //se for indutor, a condutancia em DC tende a infinito
     else if (tipo=='L'){
-       complex <double> gComp;
-       if (RAD)
-          gComp = 0.0 + J * ((netlist[i].valor) * frequencia) ;
-       else
-          gComp = 0.0 + J * ((2.0 * (double)PI *netlist[i].valor) * frequencia) ;
+      complex <double> gComp;
+      if (RAD)
+         gComp = 0.0 + J * ((netlist[i].valor) * frequencia) ;
+      else
+         gComp = 0.0 + J * ((2.0 * (double)PI *netlist[i].valor) * frequencia) ;
 
-       Ycomp[netlist[i].a][netlist[i].x]+=1.0 + 0.0*J;
-       Ycomp[netlist[i].b][netlist[i].x]-=1.0 + 0.0*J;
-       Ycomp[netlist[i].x][netlist[i].a]-=1.0+ 0.0*J;
-       Ycomp[netlist[i].x][netlist[i].b]+=1.0 + 0.0*J;
-       Ycomp[netlist[i].x][netlist[i].x]+=gComp;
+      Ycomp[netlist[i].a][netlist[i].x]+=1.0 + 0.0*J;
+      Ycomp[netlist[i].b][netlist[i].x]-=1.0 + 0.0*J;
+      Ycomp[netlist[i].x][netlist[i].a]-=1.0+ 0.0*J;
+      Ycomp[netlist[i].x][netlist[i].b]+=1.0 + 0.0*J;
+      Ycomp[netlist[i].x][netlist[i].x]+=gComp;
     }
 
    else if (tipo=='M'){
@@ -1173,35 +1190,35 @@ void montaEstampaAC(double frequencia)
         gCgd = J * 2.0 * PI * netlist[i].cgd * frequencia;
         gCgb = J * 2.0 * PI * netlist[i].cgb * frequencia;
       }
-         Ycomp[netlist[i].td][netlist[i].tb]+=gmb;
-         Ycomp[netlist[i].ts][netlist[i].ts]+=gmb;
-         Ycomp[netlist[i].td][netlist[i].ts]-=gmb;
-         Ycomp[netlist[i].ts][netlist[i].tb]-=gmb;
+      Ycomp[netlist[i].td][netlist[i].tb]+=netlist[i].gmb;
+      Ycomp[netlist[i].ts][netlist[i].ts]+=netlist[i].gmb;
+      Ycomp[netlist[i].td][netlist[i].ts]-=netlist[i].gmb;
+      Ycomp[netlist[i].ts][netlist[i].tb]-=netlist[i].gmb;
 
-         Ycomp[netlist[i].td][netlist[i].tg]+=gm;
-         Ycomp[netlist[i].ts][netlist[i].ts]+=gm;
-         Ycomp[netlist[i].td][netlist[i].ts]-=gm;
-         Ycomp[netlist[i].ts][netlist[i].tg]-=gm;
+      Ycomp[netlist[i].td][netlist[i].tg]+=netlist[i].gm;
+      Ycomp[netlist[i].ts][netlist[i].ts]+=netlist[i].gm;
+      Ycomp[netlist[i].td][netlist[i].ts]-=netlist[i].gm;
+      Ycomp[netlist[i].ts][netlist[i].tg]-=netlist[i].gm;
 
-         Ycomp[netlist[i].td][netlist[i].td]+=gds;
-         Ycomp[netlist[i].ts][netlist[i].ts]+=gds;
-         Ycomp[netlist[i].td][netlist[i].ts]-=gds;
-         Ycomp[netlist[i].ts][netlist[i].td]-=gds;
+      Ycomp[netlist[i].td][netlist[i].td]+=netlist[i].gds;
+      Ycomp[netlist[i].ts][netlist[i].ts]+=netlist[i].gds;
+      Ycomp[netlist[i].td][netlist[i].ts]-=netlist[i].gds;
+      Ycomp[netlist[i].ts][netlist[i].td]-=netlist[i].gds;
 
-         Ycomp[netlist[i].td][netlist[i].td]+=gCgd;
-         Ycomp[netlist[i].tg][netlist[i].tg]+=gCgd;
-         Ycomp[netlist[i].td][netlist[i].tg]-=gCgd;
-         Ycomp[netlist[i].tg][netlist[i].td]-=gCgd;
+      Ycomp[netlist[i].td][netlist[i].td]+=gCgd;
+      Ycomp[netlist[i].tg][netlist[i].tg]+=gCgd;
+      Ycomp[netlist[i].td][netlist[i].tg]-=gCgd;
+      Ycomp[netlist[i].tg][netlist[i].td]-=gCgd;
 
-         Ycomp[netlist[i].ts][netlist[i].ts]+=gCgs;
-         Ycomp[netlist[i].tg][netlist[i].tg]+=gCgs;
-         Ycomp[netlist[i].ts][netlist[i].tg]-=gCgs;
-         Ycomp[netlist[i].tg][netlist[i].ts]-=gCgs;
+      Ycomp[netlist[i].ts][netlist[i].ts]+=gCgs;
+      Ycomp[netlist[i].tg][netlist[i].tg]+=gCgs;
+      Ycomp[netlist[i].ts][netlist[i].tg]-=gCgs;
+      Ycomp[netlist[i].tg][netlist[i].ts]-=gCgs;
 
-         Ycomp[netlist[i].tb][netlist[i].tb]+=gCgb;
-         Ycomp[netlist[i].tg][netlist[i].tg]+=gCgb;
-         Ycomp[netlist[i].tb][netlist[i].tg]-=gCgb;
-         Ycomp[netlist[i].tg][netlist[i].tb]-=gCgb;
+      Ycomp[netlist[i].tb][netlist[i].tb]+=gCgb;
+      Ycomp[netlist[i].tg][netlist[i].tg]+=gCgb;
+      Ycomp[netlist[i].tb][netlist[i].tg]-=gCgb;
+      Ycomp[netlist[i].tg][netlist[i].tb]-=gCgb;
 
    }
     else if (tipo=='K'){
