@@ -85,6 +85,18 @@ ProductName=
 ProductVersion=1.0.0.0
 Comments=
 
+[HistoryLists\hlIncludePath]
+Count=1
+Item0=C:\Program Files (x86)\Borland\CBuilder6\Bin;C:\DelphiPr\C\mna1gr;$(BCB)\include;$(BCB)\include\vcl
+
+[HistoryLists\hlLibraryPath]
+Count=1
+Item0=C:\Program Files (x86)\Borland\CBuilder6\Bin;C:\DelphiPr\C\mna1gr;$(BCB)\lib\obj;$(BCB)\lib
+
+[HistoryLists\hlDebugSourcePath]
+Count=1
+Item0=$(BCB)\source\vcl
+
 [Debugging]
 DebugSourceDirs=$(BCB)\source\vcl
 

@@ -20,15 +20,16 @@ __published:	// IDE-managed Components
         TMenuItem *Arquivo1;
         TMenuItem *Abrir1;
         TMenuItem *Opes1;
-        TMenuItem *MostrarEstampas1;
+        TMenuItem *MostrarEstampas;
         TMenuItem *MostrarResultados;
-        TMenuItem *MostrarOperacoes;
         void __fastcall Abrir1Click(TObject *Sender);
         void __fastcall FormCreate(TObject *Sender);
-
+        void __fastcall modificadorExib(TObject *Sender);
 private:	// User declarations
+
 public:		// User declarations
         __fastcall TForm1(TComponent* Owner);
+        //int setVal();
 };
 //---------------------------------------------------------------------------
 extern PACKAGE TForm1 *Form1;

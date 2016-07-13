@@ -30,13 +30,14 @@ object Form1: TForm1
       'Baseado no codigo de Antonio Carlos M. de Queiroz - acmq@ufrj.br'
       'Por Diogo Nocera e Felipe Claudio'
       ' '
-
-        'O programa realiza análises no estado permanente senoidal de cir' +
-        'cuitos não lineares'
-
+      
+        'O programa realiza an'#225'lises no estado permanente senoidal de cir' +
+        'cuitos n'#227'o lineares'
+      
         'invariantes no tempo, usando um modelo linearizado em torno do p' +
-        'onto de operação,'
-      'calculando respostas em frequência.')
+        'onto de opera'#231#227'o,'
+      'calculando respostas em frequ'#234'ncia.'
+      '')
     ParentFont = False
     ScrollBars = ssBoth
     TabOrder = 0
@@ -59,22 +60,16 @@ object Form1: TForm1
       end
     end
     object Opes1: TMenuItem
-      Caption = 'Opções'
-      object MostrarEstampas1: TMenuItem
+      Caption = 'Op'#231#245'es'
+      object MostrarEstampas: TMenuItem
         AutoCheck = True
         Caption = 'Mostrar estampas'
-        Checked = False
-        valort = 3
+        OnClick = modificadorExib
       end
       object MostrarResultados: TMenuItem
         AutoCheck = True
         Caption = 'Mostrar resultados'
-        Checked = True
-      end
-      object MostrarOperacoes: TMenuItem
-        AutoCheck = True
-        Caption = 'Nao mostrar operacoes'
-        Checked = False
+        OnClick = modificadorExib
       end
     end
   end

@@ -72,8 +72,8 @@ Comentário: *<comentário>
                 //mesmo que esta nao esteja convergindo
 
 #define J dcomplex(0.0,1.0) //tipo usada para trabalhar com numeros complexos mais facilmente
-#define UM 0.9999999999990 //utilizado para tratar os erros numericos no seno e cosseno
-#define ZERO 0.0000000000001 //utilizado para tratar os erros numericos no seno e cosseno
+#define UM 0.999999999990 //utilizado para tratar os erros numericos no seno e cosseno
+#define ZERO 0.000000000001 //utilizado para tratar os erros numericos no seno e cosseno
 #define RAD 0 //opcao colocada para poder trabalhar em radianos
 
 typedef std::complex<double> dcomplex;
@@ -81,13 +81,14 @@ typedef std::complex<double> dcomplex;
 #define MAX_ERRO 1e-9
 #define NMAX  50
 #define printf xprintf
-
+#include "mna1gr1.h"
 
 using namespace std;
 
 enum ptoOperacao { corte, ohmica, saturacao};
 enum modoExibicao {mostraTudo, mostraResultado, naoMostra};
 modoExibicao modoExib = naoMostra;
+bool estampa = false, resultado = false; //variaveis de controle do modo de exibicao
 
 enum mosType { nmos, pmos};
 
@@ -135,10 +136,6 @@ double
   Yn[MAX_NOS+1][MAX_NOS+2],
   vAtual[MAX_NOS+1],
   vProximo[MAX_NOS+1],
-  gm = 0,
-  gds = 0,
-  gmb = 0,
-  io = 0,
   tempVar[MAX_NOS+1];
 
 complex<double> Ycomp[MAX_NOS+1][MAX_NOS+2];
@@ -166,6 +163,7 @@ void CalculaCapacitancias (elemento *netlist); //calcula as capacitancia dos tra
 void montaEstampaDC(); //monta as estampas para futuro calculo do ponto de operacao
 void montaEstampaAC(double frequencia); //monta as estampas para futuro calculo da resposta em frequencia
 void mostraSistemaAC(void); //mostra a estampa do sistema na analise AC
+void mostraEstampaAC (void);
 inline int retornaValorIndutor (int LN); //retorna a o valor da indutancia
 inline double sind (double angulo); //seno em graus
 inline double cosd (double angulo); //cosseno em graus
@@ -173,13 +171,24 @@ inline void gravaTab (char * txt, ofstream& resultadoTab); //grava o arquivo com
 inline void gravaEndlTab (ofstream& resultadoTab); //escreve os valores no arquivo
 void gravaPrimeiraLinhaTab (ofstream& resultadoTab); //grava a primeira linha do arquivo com as informacoes sobre modulo e fase
 void xprintf(char* format,...);
-//void __fastcall TForm1::FormCreate(TObject *Sender)
 
 
 //---------------------------------------------------------------------------
 __fastcall TForm1::TForm1(TComponent* Owner)
         : TForm(Owner)
 {
+}
+
+void __fastcall TForm1::modificadorExib(TObject *Sender)
+{
+  (MostrarEstampas->Checked)? estampa = true : estampa = false;
+  (MostrarResultados->Checked)? resultado = true : resultado = false;
+  if (estampa)
+        modoExib = mostraTudo;
+  else if (!estampa && resultado)
+        modoExib = mostraResultado;
+  else
+        modoExib = naoMostra;
 }
 
 //---------------------------------------------------------------------------
@@ -371,12 +380,16 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
     {
       printf("Sistema final para calculo do ponto de operacao\n");
       for (k=1; k<=nv; k++) {
+        char printTela [2000] = {0};
         for (j=1; j<=nv+1; j++)
-          if (Yn[k][j]!=0) printf("%+.2e ",Yn[k][j]);
-          else printf(" ......... ");
-        printf("\n");
+        {
+          char valorPos [20] = {0};
+          if (Yn[k][j]!=0) sprintf(valorPos,"%+.2e ", Yn[k][j]);
+          else sprintf(valorPos,"......... " );
+          strcat(printTela, valorPos);
+        }
+        xprintf(printTela);
       }
-            getch();
     }
     //#endif
     /* Resolve o sistema */
@@ -389,14 +402,22 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
   {
     printf("Sistema resolvido:\n");
     for (i=1; i<=nv; i++) {
+        char printTela [2000] = {0};
         for (j=1; j<=nv+1; j++)
-          if (Yn[i][j]!=0) printf("%+3.1f ",Yn[i][j]);
-          else printf(" ..... ");
-        printf("\n");
-        getch();
-      }
+        {
+          char valorPos [20] = {0};
+          if (Yn[i][j]!=0) sprintf(valorPos,"%+.2e ",Yn[i][j]);
+          else sprintf(valorPos,"......... ");
+          strcat(printTela, valorPos);
+        }
+        xprintf(printTela);
+    }
+
   }
+
+  //printf("\n");
     //#endif
+
     /* Mostra solucao */
     if (modoExib != naoMostra)
     {
@@ -407,7 +428,6 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
       if (i==nn+1) strcpy(txt,"Corrente");
         if (modoExib != naoMostra)
           printf("%s %s: %g\n",txt,lista[i],Yn[i][nv+1]);
-
       vProximo[i] = Yn[i] [nv+1];
     }
     vezes++;
@@ -443,7 +463,7 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
       CalculaCapacitancias (&netlist[i]);
       printf ("Gm= %.5e Gds= %.5e Gmb= %.5e\n", netlist[i].gm, netlist[i].gds, netlist[i].gmb);
       printf ("Cgs= %.5e Cgd= %.5e Cgb= %.5e \n", netlist[i].cgs, netlist[i].cgd, netlist[i].cgb);
-      printf ("vgs= %.5e vds= %.5e vbs= %.5e  io= %.5e \n", tvgs, tvds, tvbs, ti0);
+      //printf ("vgs= %.5e vds= %.5e vbs= %.5e  io= %.5e \n", tvgs, tvds, tvbs, ti0);
       if (modoExib != naoMostra)
         getch();
     }
@@ -475,7 +495,12 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
           gravaTab (outVal, resultadoTab);
 
           montaEstampaAC(freq);
+          if (modoExib == mostraTudo)
+            mostraEstampaAC();
+
           resolverSistemaAC();
+          if (modoExib != naoMostra)
+            mostraEstampaAC();
 
 
           strcpy(txt,"Tensao");
@@ -528,7 +553,12 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
           }
 
           montaEstampaAC(freq);
+          if (modoExib == mostraTudo)
+            mostraEstampaAC();
+
           resolverSistemaAC();
+          if (modoExib != naoMostra)
+            mostraEstampaAC();
 
           //Mostra solucao
           strcpy(txt,"Tensao");
@@ -592,7 +622,12 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
 
 
         montaEstampaAC(freq);
+        if (modoExib == mostraTudo)
+          mostraEstampaAC();
+
         resolverSistemaAC();
+        if (modoExib != naoMostra)
+          mostraEstampaAC();
 
         //Mostra solucao
         strcpy(txt,"Tensao");
@@ -820,14 +855,14 @@ void controleConvergencia ( double vAtual[], double vProximo[], int iteracoes )
           if (contadorConv >= MINCONV)
           {
              convergiu = true;
-             cout << "O sistema convergiu com " << numMaxIteracoes << " iteracoes " << endl;
+             printf( "O sistema convergiu com %d iteracoes", numMaxIteracoes);
           }
 
           numMaxIteracoes++;
           numRandIteracoes++;
           if (numMaxIteracoes >= 1000000) // VALOR QUE FUNCIONA 100000
           {
-        	  cout << "O sistema nao convergiu" << endl;
+        	  printf("O sistema nao convergiu");
         	  getch();
         	  exit (0);
           }
@@ -971,7 +1006,7 @@ void montaEstampaDC()
           netlist[i].gm = 0.0;
           netlist[i].gds = 0.0;
           netlist[i].gmb = 0.0;
-          io = 0.0;
+          double io = 0.0;
 
           double vds = vAtual[netlist[i].td]-vAtual[netlist[i].ts];
 
@@ -993,13 +1028,14 @@ void montaEstampaDC()
 
           vgs *= (netlist[i].pnmos==nmos?1.0:-1.0);
           vds *= (netlist[i].pnmos==nmos?1.0:-1.0);
-
-          vbs = (fabs(vbs)>netlist[i].phi/2.0?netlist[i].phi/2.0:vbs);
-
-          double vt = netlist[i].vt + netlist[i].gama * (sqrt((netlist[i].phi - fabs(vbs))) - sqrt((netlist[i].phi)));
-          //double vt = netlist[i].vt + netlist[i].gama * (sqrt((netlist[i].phi - vbs)) - sqrt((netlist[i].phi)));
-
           vbs *= (netlist[i].pnmos==nmos?1.0:-1.0);
+
+          vbs = (vbs>netlist[i].phi/2.0?netlist[i].phi/2.0:vbs);
+
+
+
+          double vt = netlist[i].vt + netlist[i].gama * (sqrt((netlist[i].phi - vbs)) - sqrt((netlist[i].phi)));
+          //double vt = netlist[i].vt + netlist[i].gama * (sqrt((netlist[i].phi - vbs)) - sqrt((netlist[i].phi)));
 
           #ifdef DEBUG
           	  printf ("vt: %f  vgs: %f vds: %f vs: %f ts %d\n", vt,vgs,vds, vAtual[netlist[i].ts], netlist[i].ts);
@@ -1041,24 +1077,16 @@ void montaEstampaDC()
             io = netlist[i].k * (netlist[i].w/netlist[i].l) * (2.0* (vgs - vt)*vds - pow (vds,2.0)) - (netlist[i].gm * vgs) - (netlist[i].gds * vds);
           }
 
-          if (gm != 0.0)
-            cout << "gm: " << gm << endl;
-          //Q?
-          //netlist[i].gmb = (netlist[i].gm*netlist[i].gama)/(sqrt(fabs(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))));
-          //netlist[i].gmb = (netlist[i].gm*netlist[i].gama)/(2*sqrt(fabs(netlist[i].phi - (vAtual[netlist[i].tb] -vAtual[netlist[i].ts]))));
-          //netlist[i].gmb = (netlist[i].gm*netlist[i].gama)/(2*sqrt(fabs(netlist[i].phi - (vbs) ) ));
-
           //GM ESTA IGUAL A 0.0 E FUNCIONA WTF?
           netlist[i].gmb = (netlist[i].gm*netlist[i].gama)/(2*sqrt(fabs(netlist[i].phi - (vbs) ) ));
 
           //io-= 0.0;
-          //io-= (netlist[i].gmb * vbs);
+          io-= (netlist[i].gmb * vbs);
           io*=(netlist[i].pnmos == pmos?-1.0:1.0);
 
           tvgs = vgs;
           tvds = vds;
           tvbs = vbs;
-          //ti0 = netlist[i].k * (netlist[i].w/netlist[i].l) * (2.0* (vgs - vt)*vds - pow (vds,2.0)) * (1.0 + netlist[i].lambda * vds);
           ti0 = netlist[i].k * (netlist[i].w/netlist[i].l) * pow((vgs - vt),2.0) * (1.0 + netlist[i].lambda * vds);
 	   	 #ifdef DEBUG
 		 	   //printf ("gm %e gmb %e  gds %e io %e \n\n", gm, gmb, gds, io);
@@ -1080,20 +1108,20 @@ void montaEstampaDC()
           Yn[netlist[i].ts][netlist[i].td]-=netlist[i].gds;
 
 
-         Yn[netlist[i].td][netlist[i].td]+=g;
-         Yn[netlist[i].tg][netlist[i].tg]+=g;
-         Yn[netlist[i].td][netlist[i].tg]-=g;
-         Yn[netlist[i].tg][netlist[i].td]-=g;
+          Yn[netlist[i].td][netlist[i].td]+=g;
+          Yn[netlist[i].tg][netlist[i].tg]+=g;
+          Yn[netlist[i].td][netlist[i].tg]-=g;
+          Yn[netlist[i].tg][netlist[i].td]-=g;
 
-         Yn[netlist[i].ts][netlist[i].ts]+=g;
-         Yn[netlist[i].tg][netlist[i].tg]+=g;
-         Yn[netlist[i].ts][netlist[i].tg]-=g;
-         Yn[netlist[i].tg][netlist[i].ts]-=g;
+          Yn[netlist[i].ts][netlist[i].ts]+=g;
+          Yn[netlist[i].tg][netlist[i].tg]+=g;
+          Yn[netlist[i].ts][netlist[i].tg]-=g;
+          Yn[netlist[i].tg][netlist[i].ts]-=g;
 
-         Yn[netlist[i].tb][netlist[i].tb]+=g;
-         Yn[netlist[i].tg][netlist[i].tg]+=g;
-         Yn[netlist[i].tb][netlist[i].tg]-=g;
-         Yn[netlist[i].tg][netlist[i].tb]-=g;
+          Yn[netlist[i].tb][netlist[i].tb]+=g;
+          Yn[netlist[i].tg][netlist[i].tg]+=g;
+          Yn[netlist[i].tb][netlist[i].tg]-=g;
+          Yn[netlist[i].tg][netlist[i].tb]-=g;
 
           Yn[netlist[i].td][nv+1]-=io;
           Yn[netlist[i].ts][nv+1]+=io;
@@ -1284,6 +1312,22 @@ void montaEstampaAC(double frequencia)
   }
 }
 
+void mostraEstampaAC (void)
+{
+    printf("Sistema final para calculo do ponto de operacao\n");
+    for (k=1; k<=nv; k++) {
+      char printTela [2000] = {0};
+      for (j=1; j<=nv+1; j++)
+      {
+        char valorPos [40] = {0};
+        if (abs(Ycomp[k][j])!=0.0) sprintf(valorPos,"%+.2e %+.2e ", Ycomp[k][j].real(), Ycomp[k][j].imag());
+        else sprintf(valorPos,"......... ......... " );
+        strcat(printTela, valorPos);
+      }
+      xprintf(printTela);
+    }
+}
+
 inline void gravaTab (char * txt, ofstream& resultadoTab)
 {
 	resultadoTab << txt << " ";
@@ -1339,7 +1383,6 @@ inline double cosd (double angulo)
 
     return cos( (angulo / 180.0) * PI );
 }
-
 //---------------------------------------------------------------------------
 void __fastcall TForm1::FormCreate(TObject *Sender)
 {
@@ -1355,3 +1398,4 @@ void xprintf(char* format,...) /* Escreve no memo1 */
   vsprintf(txt,format,paramlist);
   Form1->Memo1->Lines->Add(txt);
 }
+
