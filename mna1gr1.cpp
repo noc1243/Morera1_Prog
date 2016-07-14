@@ -414,8 +414,6 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
 
   }
 
-  //printf("\n");
-    //#endif
 
     /* Mostra solucao */
     if (modoExib != naoMostra)
@@ -460,8 +458,7 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
     if (tipo == 'M')
     {
       CalculaCapacitancias (&netlist[i]);
-      printf ("Gm= %.5e Gds= %.5e Gmb= %.5e\n", netlist[i].gm, netlist[i].gds, netlist[i].gmb);
-      printf ("Cgs= %.5e Cgd= %.5e Cgb= %.5e \n", netlist[i].cgs, netlist[i].cgd, netlist[i].cgb);
+      printf ("%s Gm= %.5e Gds= %.5e Gmb= %.5e Cgs= %.5e Cgd= %.5e Cgb= %.5e \n", netlist[i].nome, netlist[i].gm, netlist[i].gds, netlist[i].gmb, netlist[i].cgs, netlist[i].cgd, netlist[i].cgb);
       if (modoExib != naoMostra)
         getch();
     }

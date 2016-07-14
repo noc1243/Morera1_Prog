@@ -72,8 +72,8 @@ Comentário: *<comentário>
                 //mesmo que esta nao esteja convergindo
 
 #define J dcomplex(0.0,1.0) //tipo usada para trabalhar com numeros complexos mais facilmente
-#define UM 0.999999999990 //utilizado para tratar os erros numericos no seno e cosseno
-#define ZERO 0.000000000001 //utilizado para tratar os erros numericos no seno e cosseno
+#define UM 0.999999999999999999999999999999999999999999 //utilizado para tratar os erros numericos no seno e cosseno
+#define ZERO 0.0000000000000000000000000000000000000001 //utilizado para tratar os erros numericos no seno e cosseno
 #define RAD 0 //opcao colocada para poder trabalhar em radianos
 
 typedef std::complex<double> dcomplex;
@@ -414,8 +414,6 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
 
   }
 
-  //printf("\n");
-    //#endif
 
     /* Mostra solucao */
     if (modoExib != naoMostra)
