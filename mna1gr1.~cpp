@@ -43,7 +43,7 @@ Transistor MOS: M<nome> <nód> <nóg> <nós> <nób> <NMOS ou PMOS> L=<compriment
 Comentário: *<comentário>
 */
 
-#define versao "2.0 - 09/07/2016"
+#define versao "2.0 - 13/07/2016"
 #include <stdio.h>
 #include <conio.h>
 #include <string.h>
@@ -152,7 +152,6 @@ int numRandIteracoes = 0;
 double exc = 1.0;
 bool trocaValores = false;
 bool linear = true;
-double tvgs, tvds, tvbs, ti0;
 
 int resolversistema(void); //acha o ponto de operacao do sistema
 int resolverSistemaAC(void); //faz a analise ac do circuito
@@ -463,7 +462,6 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
       CalculaCapacitancias (&netlist[i]);
       printf ("Gm= %.5e Gds= %.5e Gmb= %.5e\n", netlist[i].gm, netlist[i].gds, netlist[i].gmb);
       printf ("Cgs= %.5e Cgd= %.5e Cgb= %.5e \n", netlist[i].cgs, netlist[i].cgd, netlist[i].cgb);
-      //printf ("vgs= %.5e vds= %.5e vbs= %.5e  io= %.5e \n", tvgs, tvds, tvbs, ti0);
       if (modoExib != naoMostra)
         getch();
     }
@@ -499,7 +497,7 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
             mostraEstampaAC();
 
           resolverSistemaAC();
-          if (modoExib != naoMostra)
+          if (modoExib == mostraTudo)
             mostraEstampaAC();
 
 
@@ -548,7 +546,7 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
       {
           if (modoExib == mostraTudo)
           {
-            printf("\nFrequencia: %f\n", freq);
+            printf("\n\nFrequencia: %f\n", freq);
             printf("Solucao:\n");
           }
 
@@ -557,7 +555,7 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
             mostraEstampaAC();
 
           resolverSistemaAC();
-          if (modoExib != naoMostra)
+         if (modoExib == mostraTudo)
             mostraEstampaAC();
 
           //Mostra solucao
@@ -592,7 +590,7 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
           }
           gravaEndlTab (resultadoTab);
           nPtos++;
-          printf("\nFrequencia: %f\n", freq);
+          printf("\n\nFrequencia: %f\n", freq);
           getch();
         }
         printf("Foram plotados %d pontos\n", nPtos);
@@ -612,7 +610,7 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
       {
         if (modoExib == mostraTudo)
         {
-          printf("\nFrequencia: %f\n", freq);
+          printf("\n\nFrequencia: %f\n", freq);
           printf("Solucao:\n");
         }
 
@@ -626,7 +624,7 @@ void __fastcall TForm1::Abrir1Click(TObject *Sender)
           mostraEstampaAC();
 
         resolverSistemaAC();
-        if (modoExib != naoMostra)
+        if (modoExib == mostraTudo)
           mostraEstampaAC();
 
         //Mostra solucao
@@ -989,7 +987,6 @@ void montaEstampaDC()
       Yn[netlist[i].b][netlist[i].a]-=g;
     }
 
-    //se for indutor, a condutancia em DC tende a infinito
     else if (tipo=='L')
     {
        g = FATORDC;
@@ -1084,10 +1081,6 @@ void montaEstampaDC()
           io-= (netlist[i].gmb * vbs);
           io*=(netlist[i].pnmos == pmos?-1.0:1.0);
 
-          tvgs = vgs;
-          tvds = vds;
-          tvbs = vbs;
-          ti0 = netlist[i].k * (netlist[i].w/netlist[i].l) * pow((vgs - vt),2.0) * (1.0 + netlist[i].lambda * vds);
 	   	 #ifdef DEBUG
 		 	   //printf ("gm %e gmb %e  gds %e io %e \n\n", gm, gmb, gds, io);
 		 #endif
@@ -1314,14 +1307,13 @@ void montaEstampaAC(double frequencia)
 
 void mostraEstampaAC (void)
 {
-    printf("Sistema final para calculo do ponto de operacao\n");
     for (k=1; k<=nv; k++) {
       char printTela [2000] = {0};
       for (j=1; j<=nv+1; j++)
       {
         char valorPos [40] = {0};
-        if (abs(Ycomp[k][j])!=0.0) sprintf(valorPos,"%+.2e  %+.2e ", Ycomp[k][j].real(), Ycomp[k][j].imag());
-        else sprintf(valorPos,".........  ........." );
+        if (abs(Ycomp[k][j])!=0.0) sprintf(valorPos,"%+.2e %+.2e ", Ycomp[k][j].real(), Ycomp[k][j].imag());
+        else sprintf(valorPos,"......... ......... " );
         strcat(printTela, valorPos);
       }
       xprintf(printTela);
